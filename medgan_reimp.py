@@ -8,7 +8,10 @@ Date: July 3, 2020
 import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import losses
+from tensorflow.keras import initializers
+from tensorflow.keras import regularizers
 
+# regularizers.l2(l=self.l2scale)
 
 class medgan:
     
@@ -43,6 +46,7 @@ class medgan:
         self.bn_decay = bn_decay
         self.l2scale = l2scale
         self.dropout_rate = dropout_rate
+        self.init_fxn = initializers.GlorotUniform(seed=None)
         
         self.opt = tf.keras.optimizers.Adam(1e-4)
         self.generator = self.build_generator()
@@ -54,13 +58,29 @@ class medgan:
     def build_encoder(self):
         model = tf.keras.Sequential()
         for units in enumerate(self.compress_dims):
-            model.add(tf.keras.layers.Dense(units=units, activation=self.ae_activation, kernel_initializer=self.init_fxn))
+            model.add(layers.Dense(units=units, 
+                                   activation=self.ae_activation, 
+                                   kernel_initializer=self.init_fxn, 
+                                   kernal_regularizer=regularizers.l2(l=self.l2scale)))
         return model
     
     def build_decoder(self):
         model = tf.keras.Sequential()
         for units in enumerate(self.decompress_dims):
-            model.add(tf.keras.layers.Dense(units=units, activation=self.ae_activation, kernel_initializer=self.init_fxn))
+            model.add(tf.keras.layers.Dense(units=units, 
+                                            activation=self.ae_activation, 
+                                            kernel_initializer=self.init_fxn,
+                                            kernal_regularizer=regularizers.l2(l=self.l2scale)))
+        
+        if self.data_type == 'binary':
+            model.add(layers.Dense(unit=self.embedding_dim, 
+                                   activation='sigmoid',
+                                   kernal_regularizer=regularizers.l2(l=self.l2scale)))
+        else:
+            model.add(layers.Dense(unit=self.embedding_dim, 
+                                   activation='relu',
+                                   kernal_regularizer=regularizers.l2(l=self.l2scale)))
+        
         return model
     
     def build_autoencoder(self):
@@ -72,25 +92,41 @@ class medgan:
     def build_generator(self):
         model = tf.keras.Sequential()
         for units in enumerate(self.discriminator_dims):
-            model.add(tf.keras.layers.Dense(units=units, activation=self.generator_activation, kernel_initializer=self.init_fxn))
+            model.add(layers.BatchNormalization(momentum=self.bn_decay, scale=True))
+            model.add(tf.keras.layers.Dense(units=units, 
+                                            activation=self.generator_activation, 
+                                            kernel_initializer=self.init_fxn,
+                                            kernal_regularizer=regularizers.l2(l=self.l2scale)))
+        model.add(layers.BatchNormalization(momentum=self.bn_decay, scale=True))
         
         if self.data_type == 'binary':
-            model.add(layers.Dense(self.embedding_dim, 'tanh'))
+            model.add(layers.Dense(unit=self.embedding_dim, 
+                                   activation='tanh',
+                                   kernal_regularizer=regularizers.l2(l=self.l2scale)))
         else:
-            model.add(layers.Dense(self.embedding_dim, 'relu'))
+            model.add(layers.Dense(unit=self.embedding_dim, 
+                                   activation='relu',
+                                   kernal_regularizer=regularizers.l2(l=self.l2scale)))
             
         return model
     
     def build_discriminator(self):
         model = tf.keras.Sequential()
         for units in enumerate(self.discriminator_dims):
-            model.add(tf.keras.layers.Dense(units=units, activation=self.discriminator_activation, kernel_initializer=self.init_fxn))
+            model.add(tf.keras.layers.Dense(units=units, 
+                                            activation=self.discriminator_activation, 
+                                            kernel_initializer=self.init_fxn,
+                                            kernal_regularizer=regularizers.l2(l=self.l2scale)))
             model.add(tf.keras.layers.Dropout(rate=self.dropout_rate))
         
         if self.data_type == 'binary':
-            model.add(layers.Dense(1, 'sigmoid'))
+            model.add(layers.Dense(units=1, 
+                                   activation='sigmoid',
+                                   kernal_regularizer=regularizers.l2(l=self.l2scale)))
         else:
-            model.add(layers.Dense(1, 'relu'))
+            model.add(layers.Dense(units=1, 
+                                   activation='relu',
+                                   kernal_regularizer=regularizers.l2(l=self.l2scale)))
         
         return model
     
