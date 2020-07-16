@@ -40,3 +40,4 @@ class sehrd(object):
         synth_x = obj.generate(n_sample)
         
         return(synth_x)
+
