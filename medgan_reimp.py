@@ -133,8 +133,8 @@ class medgan:
        
     def loss_discriminator(real_output, synth_output):
         real_loss = losses.BinaryCrossentropy(tf.ones_like(real_output), real_output)
-        fake_loss = losses.BinaryCrossentropy(tf.zeros_like(synth_output), synth_output)
-        total_loss = real_loss + fake_loss
+        synth_loss = losses.BinaryCrossentropy(tf.zeros_like(synth_output), synth_output)
+        total_loss = real_loss + synth_loss
         return total_loss
     
     def loss_discriminator(synth_output):
@@ -143,7 +143,8 @@ class medgan:
     def train_ae(self, x):
         model = self.build_autoencoder()
         with tf.GradientTape() as tape:
-            gradients = tape.gradient(self.loss_autoencoder(x), model.trainable_variables)
+            z = model.predict(x)
+            gradients = tape.gradient(self.loss_autoencoder(x=x, z=z), model.trainable_variables)
             gradient_variables = zip(gradients, model.trainable_variables)
             self.opt.apply_gradients(gradient_variables)
         return model
@@ -169,7 +170,7 @@ class medgan:
         
     def train(self, x, n_epoch, batch_size):
         
-        self.train_ae(x=x)
+        model_ae = self.train_ae(x=x)
         
         for i in range(n_epoch):
             self.train_step(x=x, batch_size=batch_size)
