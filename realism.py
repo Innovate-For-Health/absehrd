@@ -1,6 +1,7 @@
 import numpy as np
 from preprocessor import preprocessor as pre
-import pytorch as torch
+import torch
+from sklearn import metrics
 
 class mlp(torch.nn.Module):
         def __init__(self, input_size, hidden_size):
@@ -40,26 +41,62 @@ class realism:
                 'header_r':d_r['header'], 'header_s':d_s['header']}
         
     
-    def gan_train(x_synth, y_synth, x_real, y_real):
+    def validate_prediction(x_synth, y_synth, x_real, y_real, do_gan_train, n_epoch=5, debug=False):
         
         model = mlp(input_size=x_synth.shape[1], hidden_size=256)
         
         
-        x_train = torch.FloatTensor(x_synth)
-        y_train = torch.FloatTensor(y_synth)
-        x_test = torch.FloatTensor(x_real)
-        y_test = torch.FloatTensor(y_real)
+        if do_gan_train:
+            x_train = torch.FloatTensor(x_synth)
+            y_train = torch.FloatTensor(y_synth)
+            x_test = torch.FloatTensor(x_real)
+            y_test = torch.FloatTensor(y_real)
+        else: 
+            x_train = torch.FloatTensor(x_real)
+            y_train = torch.FloatTensor(y_real)
+            x_test = torch.FloatTensor(x_synth)
+            y_test = torch.FloatTensor(y_synth)
         
         criterion = torch.nn.BCELoss()
         optimizer = torch.optim.SGD(model.parameters(), lr = 0.01)
         
         model.eval()
-        y_pred = model(x_real)
-        before_train = criterion(y_pred.squeeze(), y_test)
+        p = model(x_test)
+        before_train = criterion(p.squeeze(), y_test)
         
-        return None
+        if debug:
+            print('Test loss before training' , before_train.item())
+        
+        model.train()
+        for epoch in range(n_epoch):
+            optimizer.zero_grad()
+            p = model(x_train)
+            loss = criterion(p.squeeze(), y_train)
+           
+            if debug:
+                print('Epoch {}: train loss: {}'.format(epoch, loss.item()))
+                
+            loss.backward()
+            optimizer.step()
+        
+        model.eval()
+        p = model(x_test).detach().cpu().numpy()
+       
+        if do_gan_train:
+            roc = metrics.roc_curve(y_true=y_real, y_score=p)
+            auc = metrics.roc_auc_score(y_true=y_real, y_score=p)
+        else:
+            roc = metrics.roc_curve(y_true=y_synth, y_score=p)
+            auc = metrics.roc_auc_score(y_true=y_synth, y_score=p)
+        
+        return {'mode':model, 'p':p, 'roc':roc, 'auc':auc}
     
-    def gan_test():
-        return None
+    def gan_train(self, x_synth, y_synth, x_real, y_real, n_epoch=5, debug=False):
+        return self.validate_prediction(x_synth, y_synth, x_real, y_real, 
+                                   do_gan_train=True, n_epoch=n_epoch, debug=debug)
+    
+    def gan_test(self, x_synth, y_synth, x_real, y_real, n_epoch=5, debug=False):
+        return self.validate_prediction(x_synth, y_synth, x_real, y_real, 
+                                   do_gan_train=False, n_epoch=n_epoch, debug=debug)
     
     
