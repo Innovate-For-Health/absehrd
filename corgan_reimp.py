@@ -335,7 +335,7 @@ class corgan(object):
                     'optimizer_G_state_dict': optimizer_G.state_dict(),
                     'optimizer_D_state_dict': optimizer_D.state_dict(),
                     'optimizer_A_state_dict': optimizer_A.state_dict(),
-                }, os.path.join(opt.expPATH, opt.outprefix + ".model_epoch_%d.pth" % (epoch + 1)))
+                }, os.path.join(opt.expPATH, outprefix + ".model_epoch_%d.pth" % (epoch + 1)))
                     
     def resume(self, file_model, x, n_cpu, n_epochs_pretrain, n_epochs, sample_interval, 
               latent_dim, clamp_lower, clamp_upper, lr, b1, b2, weight_decay, 
