@@ -63,6 +63,7 @@ class Generator(nn.Module):
         self.linear2 = nn.Linear(latent_dim, self.genDim)
         self.bn2 = nn.BatchNorm1d(self.genDim, eps=0.001, momentum=0.01)
         self.activation2 = nn.Tanh()
+        self.latent_dim=latent_dim
     
     def forward(self, x):
         # Layer 1
@@ -85,7 +86,6 @@ class Discriminator(nn.Module):
         ma_coef = 1
         if minibatch_averaging:
             ma_coef = ma_coef * 2
-        self.minibatch_averaging = minibatch_averaging
         self.model = nn.Sequential(
             nn.Linear(ma_coef * feature_size, self.disDim),
             nn.ReLU(True),
@@ -95,6 +95,8 @@ class Discriminator(nn.Module):
             nn.ReLU(True),
             nn.Linear(int(self.disDim), 1)
         )
+        self.minibatch_averaging = minibatch_averaging
+        self.feature_size=feature_size
     
     def forward(self, x):
         if self.minibatch_averaging:
@@ -174,6 +176,14 @@ class corgan(object):
         x_tst = x[idx_tst,:]
         x_trn = x_trn.astype(np.float32)
         x_tst = x_tst.astype(np.float32)
+        
+        # adapt batch-size to small datasets
+        if len(x_tst) < batch_size or len(x_trn) < batch_size:
+            if debug:
+                print('\nWarning: decreasing batch size from',
+                      batch_size, 'to', min(len(x_tst), len(x_trn)),
+                      'due to small dataset.')
+            batch_size = min(len(x_tst), len(x_trn))
         
         # Train data loader
         dataset_train_object = Dataset(data=x_trn, transform=False)
@@ -357,10 +367,16 @@ class corgan(object):
                 if epoch_time_show:
                     print("It has been {0} seconds for this epoch".format(round(epoch_end - epoch_start,2)), flush=True)
         
+            parameter_dict = {'latent_dim':latent_dim, 
+                                  'feature_size':x.shape[1],
+                                  'batch_size':batch_size,
+                                  'n_cpu':n_cpu}
+        
             if (epoch + 1) % epoch_save_model_freq == 0 or (epoch + 1) == n_epochs:
                 # Refer to https://pytorch.org/tutorials/beginner/saving_loading_models.html
                 if not os.path.isdir(path_checkpoint):
                     os.mkdir(path_checkpoint)
+                    
                 torch.save({
                     'epoch': epoch + 1,
                     'Generator_state_dict': generatorModel.state_dict(),
@@ -370,6 +386,7 @@ class corgan(object):
                     'optimizer_G_state_dict': optimizer_G.state_dict(),
                     'optimizer_D_state_dict': optimizer_D.state_dict(),
                     'optimizer_A_state_dict': optimizer_A.state_dict(),
+                    'parameter_dict':parameter_dict
                 }, os.path.join(path_checkpoint, prefix_checkpoint + ".model_epoch_%d.pth" % (epoch + 1)))
                 
         return {'epoch': epoch + 1,
@@ -379,20 +396,34 @@ class corgan(object):
                     'Autoencoder_Decoder_state_dict': autoencoderDecoder.state_dict(),
                     'optimizer_G_state_dict': optimizer_G.state_dict(),
                     'optimizer_D_state_dict': optimizer_D.state_dict(),
-                    'optimizer_A_state_dict': optimizer_A.state_dict()}
+                    'optimizer_A_state_dict': optimizer_A.state_dict(),
+                    'parameter_dict':parameter_dict}
     
-    def generate(file_model, n_gen, feature_size, 
-                 batch_size=512, latent_dim=128):
+    # model may be a file name to the checkpoint or a model dictionary object
+    def generate(model, n_gen):
     
         device = torch.device("cpu")
         
         # Loading the checkpoint
-        checkpoint = torch.load(file_model)
+        checkpoint=model
+        if isinstance(model, str):
+            checkpoint = torch.load(model)
+        
+        # parameters
+        latent_dim = checkpoint['parameter_dict']['latent_dim']
+        feature_size = checkpoint['parameter_dict']['feature_size']
+        batch_size = checkpoint['parameter_dict']['batch_size']
+        n_cpu = checkpoint['parameter_dict']['n_cpu']
         
         # Setup model
-        generatorModel = Generator()
-        autoencoderModel = Autoencoder()
+        generatorModel = Generator(latent_dim=latent_dim)
+        autoencoderModel = Autoencoder(feature_size=feature_size)
         autoencoderDecoder = autoencoderModel.decoder
+        if multiprocessing.cpu_count() > 1 and n_cpu > 1:
+            n_cpu = min(multiprocessing.cpu_count(), n_cpu)
+            generatorModel = nn.DataParallel(generatorModel, list(range(n_cpu)))
+            autoencoderModel = nn.DataParallel(autoencoderModel, list(range(n_cpu)))
+            autoencoderDecoder = nn.DataParallel(autoencoderDecoder, list(range(n_cpu)))
     
         # Load models
         generatorModel.load_state_dict(checkpoint['Generator_state_dict'])
