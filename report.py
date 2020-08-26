@@ -27,8 +27,8 @@ class report(object):
                 
         # extract features and outcome for prediction tests
         idx_outcome = np.where(col_names == outcome)
-        y_r = np.reshape(r[:,idx_outcome], newshape=(len(r),1))
-        y_s = np.reshape(s[:,idx_outcome], newshape=(len(r),1))
+        y_r = np.round(np.reshape(r[:,idx_outcome], newshape=(len(r),1))).astype(int)
+        y_s = np.round(np.reshape(s[:,idx_outcome], newshape=(len(r),1))).astype(int)
         x_r = np.delete(r, idx_outcome, axis=1)
         x_s = np.delete(s, idx_outcome, axis=1)
         
@@ -44,6 +44,9 @@ class report(object):
             res_gan_real = realism.gan_train(realism, x_r, y_r, x_r, y_r, n_epoch=n_epoch)
             res_gan_train = realism.gan_train(realism, x_s, y_s, x_r, y_r, n_epoch=n_epoch)
             res_gan_test = realism.gan_test(realism, x_s, y_s, x_r, y_r, n_epoch=n_epoch)
+            
+            if res_gan_real is None or res_gan_train is None or res_gan_test is None:
+                return False
             
         # regression
         if type == 'description':
@@ -62,20 +65,21 @@ class report(object):
             x_buffer = 0.1
             y_buffer = 0.075
             m_buffer = 1.5
+            n_decimal = 2
             
             msgs = ['Real: '+str(r.shape),
                     'Synthetic: '+str(s.shape),
-                    'Frequency correlation: '+str(np.round(corr_uni,2)),
+                    'Frequency correlation: '+str(np.round(corr_uni,n_decimal)),
                     'Mean nearest neighbor distance: ',
-                    '  > Real-real: '+str(np.round(np.mean(res_nn['real']),2)),
-                    '  > Real-synthetic: '+str(np.round(np.mean(res_nn['synth']),2)),
-                    '  > Real-probabilistic: '+str(np.round(np.mean(res_nn['prob']),2)),
-                    '  > Real-random: '+str(np.round(np.mean(res_nn['rand']),2)),
+                    '  > Real-real: '+str(np.round(np.mean(res_nn['real']),n_decimal)),
+                    '  > Real-synthetic: '+str(np.round(np.mean(res_nn['synth']),n_decimal)),
+                    '  > Real-probabilistic: '+str(np.round(np.mean(res_nn['prob']),n_decimal)),
+                    '  > Real-random: '+str(np.round(np.mean(res_nn['rand']),n_decimal)),
                     'Realism assessment: ',
-                    '  > Real AUC: '+str(np.round(res_gan_real['auc'])),
-                    '  > GAN-train AUC: '+str(np.round(res_gan_train['auc'])),
-                    '  > GAN-test AUC: '+str(np.round(res_gan_test['auc']))]
-            
+                    '  > Real AUC: '+str(np.round(res_gan_real['auc'],n_decimal)),
+                    '  > GAN-train AUC: '+str(np.round(res_gan_train['auc'],n_decimal)),
+                    '  > GAN-test AUC: '+str(np.round(res_gan_test['auc'],n_decimal))]
+
             ax0.set_xticks([])
             ax0.set_yticks([])
             ax0.set_title('Prediction report')
@@ -114,13 +118,12 @@ class report(object):
             ax3.tick_params(axis='x', labelsize=fontsize)
             ax3.tick_params(axis='y', labelsize=fontsize)
             ax3.legend(fontsize=fontsize)
-            ax3.set_xlabel('False positive rate')
-            ax3.set_ylabel('True positive rate')
+            ax3.set_xlabel('False positive rate', fontsize=fontsize)
+            ax3.set_ylabel('True positive rate', fontsize=fontsize)
             
             plt.tight_layout()
             pdf.savefig()
             plt.close(fig)
-        
         
         return True
     

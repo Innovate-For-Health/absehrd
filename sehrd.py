@@ -5,10 +5,7 @@ Author: Haley Hunter-Zinck
 Date: June 23, 2020
 """
 
-from medgan_reimp import medgan
-#from corgan import corgan
-#from medwgan import medwgan
-#from ppgan import ppgan
+from corgan import corgan
 
 class sehrd(object):
     

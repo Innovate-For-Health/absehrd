@@ -5,7 +5,7 @@ class tester_rep(object):
     
     def test_prediction_report():
         
-        file_pred = "../plots/test_prediction_report.pdf"
+        file_pred = "../plots/test1_prediction_report.pdf"
         n = 1000
         m = 7
         col_names=np.array(['A','B','C','D','E','F','G'])
@@ -13,14 +13,31 @@ class tester_rep(object):
         r = np.random.randint(low=0, high=2, size=(n, m))
         s = np.random.randint(low=0, high=2, size=(n, m))
         
-        res_pred = report.prediction_report(report, 
+        res1 = report.prediction_report(report, 
                                        r=r, 
                                        s=s, 
                                        col_names=col_names, 
                                        outcome=outcome, 
                                        file_pdf=file_pred)
         
-        return res_pred
+        file_pred = "../plots/test2_prediction_report.pdf"
+        n = 1000
+        m = 7
+        col_names=np.array(['A','B','C','D','E','F','G'])
+        outcome ='F'
+        r = np.column_stack((np.random.uniform(low=0, high=1, size=(n, m-1)), 
+                         np.random.randint(low=0, high=2, size=n)))
+        s = np.column_stack((np.random.uniform(low=0, high=1, size=(n, m-1)), 
+                         np.random.randint(low=0, high=2, size=n)))
+        
+        res2 = report.prediction_report(report, 
+                                       r=r, 
+                                       s=s, 
+                                       col_names=col_names, 
+                                       outcome=outcome, 
+                                       file_pdf=file_pred)
+        
+        return res1 and res2
     
     def test_description_report():
         
@@ -28,7 +45,7 @@ class tester_rep(object):
         n = 1000
         m = 7
         col_names=np.array(['A','B','C','D','E','F','G'])
-        outcome ='F'
+        outcome ='G'
         r = np.random.randint(low=0, high=2, size=(n, m))
         s = np.random.randint(low=0, high=2, size=(n, m))
         

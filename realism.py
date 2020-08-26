@@ -43,8 +43,15 @@ class realism:
     
     def validate_prediction(x_synth, y_synth, x_real, y_real, do_gan_train, n_epoch=5, debug=False):
         
-        model = mlp(input_size=x_synth.shape[1], hidden_size=256)
+        if (sum(y_synth) == 0 or sum(y_synth) == len(y_synth)) and do_gan_train:
+            print('Error: synthetic outcome is constant')
+            return None
         
+        if (sum(y_real) == 0 or sum(y_real) == len(y_real)) and not do_gan_train:
+            print('Error: real outcome is constant')
+            return None
+        
+        model = mlp(input_size=x_synth.shape[1], hidden_size=256)
         
         if do_gan_train:
             x_train = torch.FloatTensor(x_synth)

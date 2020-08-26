@@ -263,7 +263,9 @@ class preprocessor:
             
         for i in range(len(s)):
             
-            idx = np.where(s[i,:]==1)
+            idx = np.where(s[i,:]==np.max(s[i,:]))[0]
+            if len(idx) > 1:
+                idx = idx[np.random.randint(low=0,high=len(idx), size=1)]
             x = np.append(x, values[idx])
             
         return x
