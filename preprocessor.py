@@ -1,19 +1,14 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-
-Author: Haley Hunter-Zinck
-Date: August 11, 2020
-"""
-
 from re import search
 import numpy as np
 import pandas as pd
 import feather
 
 class preprocessor:
+    
+    def __init__(self, missing_value):
+         self.missing_value=missing_value
 
-    def get_file_type(file_name, debug=False):
+    def get_file_type(self, file_name, debug=False):
         
         file_type = ''
         
@@ -33,7 +28,7 @@ class preprocessor:
             
         return file_type
     
-    def get_default_header(n, prefix='C'):
+    def get_default_header(self, n, prefix='C'):
         
         header = np.full(shape=n, fill_value='', dtype='<U'+str(len(str(n-1))+len(prefix)))
         for i in range(n):
@@ -41,7 +36,7 @@ class preprocessor:
             
         return header
     
-    def read_file(self, file_name, skip_header=0, debug=False):
+    def read_file(self, file_name, n_header=0, debug=False):
         
         arr = None
         header = []
@@ -56,19 +51,22 @@ class preprocessor:
                 print('Reading feather file ', file_name, '...')
             df = feather.read_dataframe(file_name)
             arr = df.to_numpy()
+            header = df.columns
         
         elif(self.get_file_type(file_name) == 'csv'):
             if debug:
                 print('Reading csv file ', file_name, '...')
-            arr = np.genfromtxt(file_name, delimiter=',', skip_header=skip_header)
-            if skip_header > 0:
-                header = np.genfromtxt(file_name, delimiter=',',max_rows=1, skip_header=0)
+            
+            df = pd.read_csv(file_name)
+            arr = df.to_numpy()
+            if n_header > 0:
+                header = df.columns
         
         elif(self.get_file_type(file_name) == 'tsv'):
             if debug:
                 print('Reading tsv file ', file_name, '...')
             arr = np.genfromtxt(file_name, delimiter='\t', skip_header=skip_header)
-            if skip_header > 0:
+            if n_header > 0:
                 header = np.genfromtxt(file_name, delimiter=',',max_rows=1, skip_header=0)
                 
         else:
@@ -86,7 +84,7 @@ class preprocessor:
         
         return {'x':arr, 'header':header}
     
-    def is_numeric(x):
+    def is_numeric(self, x):
         for ele in x:
             try:
                 f = float(ele)
@@ -94,13 +92,23 @@ class preprocessor:
                 return False
         return True
     
-    def get_minority_class(x):
+    def remove_na(self, x):
         
-        vs = np.unique(x)
+        if self.is_numeric(x):
+            d = x[np.where(x.astype(float) != float(self.missing_value))]
+        else:
+            d = x[np.where(x != str(self.missing_value))]
+        
+        return d
+    
+    def get_minority_class(self, x):
+        
+        d = self.remove_na(x)
+        vs = np.unique(d)
         v0 = 0
         v1 = 0
         
-        for ele in x:
+        for ele in d:
             if(ele == vs[0]):
                 v0+=1
             else:
@@ -114,7 +122,8 @@ class preprocessor:
                                custom_continuous=(), custom_count=(),
                                max_uniq=10, max_diff=1e-10):
         
-        n_uniq = len(set(x))
+        d = self.remove_na(x)
+        n_uniq = len(set(d))
         
         if label is not None and label in custom_categorical:
             return 'categorical'
@@ -131,9 +140,9 @@ class preprocessor:
         if n_uniq == 2:
             return 'binary'
         
-        if n_uniq > max_uniq and self.is_numeric(x):
+        if n_uniq > max_uniq and self.is_numeric(d):
             
-            for ele in x:
+            for ele in d:
                 ele = float(ele)
                 if abs(ele - round(ele)) > max_diff:
                     return 'continuous'
@@ -150,28 +159,27 @@ class preprocessor:
         
         for j in range(x.shape[1]):
             
+            d = self.remove_na(x[:,j])
+            
             m[j]['label'] = header[j]
             
-            m[j]['type'] = self.get_variable_type(self, x[:,j], label=header[j])
+            m[j]['type'] = self.get_variable_type(d, label=header[j])
             
             if(m[j]['type'] == 'binary'):
-                m[j]['one'] = self.get_minority_class(x[:,j])
-                m[j]['zero'] = set(np.unique(x[:,j])).difference([m[j]['one']]).pop()
+                m[j]['one'] = self.get_minority_class(d)
+                m[j]['zero'] = set(np.unique(d)).difference([m[j]['one']]).pop()
             
             if(m[j]['type'] == 'constant'):
-                m[j]['zero'] = x[0,j]
+                m[j]['zero'] = np.unique(d)[0]
             
             if(m[j]['type'] == 'continuous' or m[j]['type'] == 'count'):
-                m[j]['min'] = np.min(x[:,j].astype(np.float))
-                m[j]['max'] = np.max(x[:,j].astype(np.float))
+                m[j]['min'] = np.min(d.astype(np.float))
+                m[j]['max'] = np.max(d.astype(np.float))
             
         return m
     
-    def get_one_hot_encoding(x, label, delim="__"):
+    def get_one_hot_encoding(self, x, label, delim="__"):
                 
-        u_label = []
-        x_hot = []
-        
         u_value = np.unique(x)
         u_label = [label + delim] * len(u_value)
         x_hot = np.zeros(shape=(len(x), len(u_value)), dtype=int)
@@ -183,28 +191,43 @@ class preprocessor:
                 if(x[i] == u_value[j]):
                     x_hot[i,j] = 1
             
-            
-            
         return {'x':x_hot, 'header':u_label}
     
-    def scale(x):
+    def scale(self, x):
         
-        x_min = np.min(x)
-        x_max = np.max(x)
-        s = np.zeros(len(x))
+        d = self.remove_na(x=x)
+        x_min = np.min(d)
+        x_max = np.max(d)
+        s = np.zeros(shape=len(x))
         
         for i in range(len(x)):
-            s[i] = (x[i] - x_min) / (x_max - x_min)
+            if x[i] != self.missing_value:
+                s[i] = (x[i] - x_min) / (x_max - x_min)
+            else:
+                s[i] = self.missing_value
         
-        return(s)
+        return s
     
-    def unscale(s, min_value, max_value):
+    def unscale(self, s, min_value, max_value):
         
         x = np.zeros(len(s))
         
         for i in range(len(s)):
             x[i] = s[i] * (max_value - min_value) + min_value
         return x
+    
+    def get_missing_column(self, x):
+        
+        y = np.zeros(shape=x.shape)
+        idx = np.array([], dtype=int)
+        
+        for i in range(len(x)):
+            if x[i] == self.missing_value or x[i] == str(self.missing_value):
+                idx = np.append(idx, i)
+            
+        y[idx] = 1
+        
+        return y
     
     def get_discretized_matrix(self, x, m, header, delim='__', debug=False):
         
@@ -214,32 +237,66 @@ class preprocessor:
         for j in range(x.shape[1]):
             
             c_type = m[j]['type']
+            x_j = x[:,j]
             s_j = []
             
+            contains_missing = len(self.remove_na(x_j)) < len(x_j)
+            
             if c_type == 'constant':
-                s_j = np.zeros(shape=x.shape[0])
-                d_header = np.append(d_header, header[j])
+                
+                if contains_missing:
+                    s_j = np.column_stack((np.zeros(shape=x.shape[0]),
+                                           self.get_missing_column(x_j)))
+                    d_header = np.append(d_header, 
+                                         (header[j]+delim+header[j], 
+                                          header[j]+delim+str(self.missing_value)))
+                else:
+                    s_j = np.zeros(shape=x.shape[0])
+                    d_header = np.append(d_header, header[j])
                 
             elif c_type == 'continuous' or c_type == 'count':
-                x_j = x[:,j].astype(np.float)
-                s_j = self.scale(x_j)
-                d_header = np.append(d_header, header[j])
                 
-            elif c_type == "categorical":
-                res = self.get_one_hot_encoding(x=x[:,j], label=header[j])
+                x_j = x_j.astype(np.float)
+                s_j = self.scale(x_j)
+                
+                if contains_missing:
+                    idx = np.where(s_j == self.missing_value)[0]
+                    s_j[idx] = np.random.uniform(low=0, high=1, size=len(idx))
+                    s_j = np.column_stack((s_j,
+                                       self.get_missing_column(x_j)))
+                    d_header = np.append(d_header, 
+                                         (header[j]+delim+header[j], 
+                                          header[j]+delim+str(self.missing_value)))
+                else:
+                    d_header = np.append(d_header, header[j])
+                
+            elif c_type == 'categorical':
+                
+                res = self.get_one_hot_encoding(x=x_j, label=header[j])
                 s_j = res['x']
                 d_header = np.append(d_header, res['header'])
                 
-            elif c_type == "binary":
-                s_j = np.zeros(shape=len(x), dtype=int)
+            elif c_type == 'binary':
+                
+                s_j = np.zeros(shape=len(x_j), dtype=int)
                 for i in range(len(x)):
                     if x[i,j] == m[j]['one']:
                         s_j[i] = 1
-                d_header = np.append(d_header, header[j])
+                
+                if contains_missing:
+                    f_j = s_j
+                    idx = np.where(x_j == str(self.missing_value))[0]
+                    f_j[idx] = np.random.randint(low=0,high=2,size=len(idx))
+                    s_j = np.column_stack((f_j, self.get_missing_column(x_j)))
+                    d_header = np.append(d_header, 
+                                         (header[j]+delim+header[j], 
+                                          header[j]+delim+str(self.missing_value)))
+                else:
+                    d_header = np.append(d_header, header[j])
                 
             else:
                 print("Warning: variable type not recognized.  Appending as is.")
-                s_j = x[:,j]
+                s_j = x_j
                 d_header = np.append(d_header, header[j])
             
             if len(d_x) == 0:
@@ -253,7 +310,7 @@ class preprocessor:
         
         return {'x':d_x, 'header':d_header}
     
-    def unravel_one_hot_encoding(s, header, delim="__"):
+    def unravel_one_hot_encoding(self, s, header, delim="__"):
         
         values = []
         x = []
@@ -263,7 +320,9 @@ class preprocessor:
             
         for i in range(len(s)):
             
-            idx = np.where(s[i,:]==np.max(s[i,:]))[0]
+            s_i = s[i,:].astype(float)
+            
+            idx = np.where(s_i==np.max(s_i))[0]
             if len(idx) > 1:
                 idx = idx[np.random.randint(low=0,high=len(idx), size=1)]
             x = np.append(x, values[idx])
@@ -274,38 +333,60 @@ class preprocessor:
         
         x_prime = []
         variable_names = []
+        variable_values = []
         header_prime = m['label']
        
         for i in range(len(header)):
-            variable_names = np.append(variable_names, header[i].split(sep=delim)[0])
+            
+            splt = header[i].split(sep=delim)
+            variable_names = np.append(variable_names, splt[0])
+            
+            if len(splt) > 1:
+                variable_values = np.append(variable_values, splt[1])
+            else:
+                variable_values = np.append(variable_values, '')
         
         for j in range(len(m)):
             
             x_j = []
-            idx = np.where(variable_names == m[j]['label'])[0]
-            s_j = s[:,idx]
+            idx_missing = []
+            idx_col = np.where(variable_names == m[j]['label'])[0]
+            
+            if m[j]['type'] != 'categorical' and len(idx_col) > 1:
+                for k in np.where(variable_names == m[j]['label'])[0]:
+                    if variable_values[k] == str(self.missing_value):
+                        idx_missing = np.where(s[:,k] == 1)[0]
+                    else:
+                        idx_col = k
+                        
+            s_j = s[:,idx_col]
             
             if m[j]['type'] == 'constant':
                 x_j = np.full(shape=len(s), fill_value=m[j]['zero'])
+                x_j[idx_missing] = self.missing_value
             
             elif m[j]['type'] == 'continuous' or m[j]['type'] == 'count':
                 min_value = float(m[j]["min"])
                 max_value = float(m[j]["max"])
-                x_j = self.unscale(s=s_j, min_value=min_value, max_value=max_value)
+                x_j = self.unscale(s=s_j.astype('float'), min_value=min_value, max_value=max_value)
                 
                 if m[j]['type'] == 'count':
                   x_j = np.round(x_j)
+                  
+                x_j[idx_missing] = self.missing_value
             
             elif m[j]['type'] == 'categorical':
-                x_j = self.unravel_one_hot_encoding(s=s_j, header=header[idx])
+                x_j = self.unravel_one_hot_encoding(s=s_j, header=header[idx_col])
             
             elif m[j]['type'] == 'binary':
                 
-                x_j = np.full(shape=len(s), fill_value=m[j]['zero'])
+                x_j = np.full(shape=len(s), fill_value=m[j]['zero'], dtype='O')
                 
                 for i in range(len(s_j)):
                     if s_j[i] == 1:
                         x_j[i] = m[j]['one']
+                        
+                x_j[idx_missing] = self.missing_value
                         
             if len(x_prime) == 0:
                 x_prime = x_j

@@ -7,9 +7,12 @@ from sklearn.linear_model import LogisticRegression
 
 class report(object):
     
-    def make_report(r, s, col_names, file_pdf, outcome=None,  
+    def __init__(self, missing_value):
+        self.missing_value=missing_value
+    
+    def make_report(self, r, s, col_names, file_pdf, outcome=None,  
                           dist_metric='euclidean', n_epoch=5, 
-                          type='prediction'):
+                          type='prediction', n_nn_sample=100):
         
         # check user input
         if outcome is None and (type=='prediction' or type=='description'):
@@ -24,34 +27,39 @@ class report(object):
         if r.shape[1] != s.shape[1]:
             print('\nError: number of columns in r and s must match')
             return False
+        
+        rea = realism(self.missing_value)
+        pri = privacy()
                 
         # extract features and outcome for prediction tests
         idx_outcome = np.where(col_names == outcome)
-        y_r = np.round(np.reshape(r[:,idx_outcome], newshape=(len(r),1))).astype(int)
-        y_s = np.round(np.reshape(s[:,idx_outcome], newshape=(len(r),1))).astype(int)
+        y_r = np.reshape(np.round(np.reshape(r[:,idx_outcome], newshape=(len(r),1))).astype(int), len(r))
+        y_s = np.reshape(np.round(np.reshape(s[:,idx_outcome], newshape=(len(s),1))).astype(int), len(s))
         x_r = np.delete(r, idx_outcome, axis=1)
         x_s = np.delete(s, idx_outcome, axis=1)
         
         # univariate
-        res_uni = realism.validate_univariate(r, s, col_names)
+        res_uni = rea.validate_univariate(r, s, col_names, discretized=True)
         corr_uni = np.corrcoef(x=res_uni['frq_r'], y=res_uni['frq_s'])[0,1]
         
         # nearest neighbors
-        res_nn = privacy.assess_memorization(privacy, r, s, metric=dist_metric)
+        idx_r = np.random.randint(low=0, high=len(r), size=min((len(r), n_nn_sample)))
+        idx_s = np.random.randint(low=0, high=len(s), size=min((len(s), n_nn_sample)))
+        res_nn = pri.assess_memorization(r[idx_r,:], s[idx_s,:], metric=dist_metric)
         
         # real-real, gan-train, gan-test
         if type == 'prediction' or type == 'description':
-            res_gan_real = realism.gan_train(realism, x_r, y_r, x_r, y_r, n_epoch=n_epoch)
-            res_gan_train = realism.gan_train(realism, x_s, y_s, x_r, y_r, n_epoch=n_epoch)
-            res_gan_test = realism.gan_test(realism, x_s, y_s, x_r, y_r, n_epoch=n_epoch)
+            res_gan_real = rea.gan_train(x_r, y_r, x_r, y_r, n_epoch=n_epoch)
+            res_gan_train = rea.gan_train(x_s, y_s, x_r, y_r, n_epoch=n_epoch)
+            res_gan_test = rea.gan_test(x_s, y_s, x_r, y_r, n_epoch=n_epoch)
             
             if res_gan_real is None or res_gan_train is None or res_gan_test is None:
                 return False
             
         # regression
         if type == 'description':
-            reg_r = LogisticRegression().fit(X=x_r, y=y_r)
-            reg_s = LogisticRegression().fit(X=x_s, y=y_s)
+            reg_r = LogisticRegression(max_iter=1000).fit(X=x_r, y=y_r)
+            reg_s = LogisticRegression(max_iter=1000).fit(X=x_s, y=y_s)
             coef_r = (reg_r.coef_ - np.min(reg_r.coef_)) / (np.max(reg_r.coef_) - np.min(reg_r.coef_))
             coef_s = (reg_s.coef_ - np.min(reg_s.coef_)) / (np.max(reg_s.coef_) - np.min(reg_s.coef_))
         
@@ -128,7 +136,7 @@ class report(object):
         return True
     
     def prediction_report(self, r, s, col_names, outcome, file_pdf, 
-                          dist_metric='euclidean', n_epoch=5):
+                          dist_metric='euclidean', n_epoch=5, n_nn_sample=100):
         
         return self.make_report(r=r, 
                                 s=s, 
@@ -137,11 +145,12 @@ class report(object):
                                 outcome=outcome, 
                                 dist_metric=dist_metric, 
                                 n_epoch=n_epoch, 
+                                n_nn_sample=n_nn_sample,
                                 type='prediction')
         
     
     def description_report(self, r, s, col_names, outcome, file_pdf, 
-                          dist_metric='euclidean', n_epoch=5):
+                          dist_metric='euclidean', n_epoch=5, n_nn_sample=100):
         
         return self.make_report(r=r, 
                                 s=s, 
@@ -150,6 +159,7 @@ class report(object):
                                 outcome=outcome, 
                                 dist_metric=dist_metric, 
                                 n_epoch=n_epoch, 
+                                n_nn_sample=n_nn_sample,
                                 type='description')
     
     def clustering_report(self, r, s, col_names, file_pdf, 

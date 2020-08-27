@@ -12,7 +12,7 @@ class privacy(object):
         return distances[:,1]
     """
     
-    def euclidean(a,b):
+    def euclidean(self, a,b):
         
         d = 0
         
@@ -39,7 +39,7 @@ class privacy(object):
                 
                 for j in range(len(a)):
                     if i != j:
-                        d_i[j] = self.distance(self, a[i,:], a[j,:], metric)
+                        d_i[j] = self.distance(a[i,:], a[j,:], metric)
                     
                 d_min[i] = np.min(d_i)
                 
@@ -49,7 +49,7 @@ class privacy(object):
                 d_i = np.full(shape=len(b), fill_value=float('inf'))
                 
                 for j in range(len(b)):
-                    d_i[j] = self.distance(self, a[i,:], b[j,:], metric)
+                    d_i[j] = self.distance(a[i,:], b[j,:], metric)
                     
                 d_min[i] = np.min(d_i)
         
@@ -58,19 +58,19 @@ class privacy(object):
     def assess_memorization(self, x_real, x_synth, metric='euclidean'):
         
         # real to real
-        nn_real = self.nearest_neighbors(self, a=x_real, metric=metric)
+        nn_real = self.nearest_neighbors(a=x_real, metric=metric)
         
         # real to synth
-        nn_synth = self.nearest_neighbors(self, a=x_real, b=x_synth, metric=metric)
+        nn_synth = self.nearest_neighbors(a=x_real, b=x_synth, metric=metric)
         
         # real to probabilistically sampled
         x_prob = np.full(shape=x_real.shape, fill_value=0)
         for j in range(x_real.shape[1]):
             x_prob[:,j] = np.random.binomial(n=1, p=np.mean(x_real[:,j]), size=x_real.shape[0])
-        nn_prob = self.nearest_neighbors(self, a=x_real, b=x_prob, metric=metric)
+        nn_prob = self.nearest_neighbors(a=x_real, b=x_prob, metric=metric)
         
         # real to noise
         x_rand = np.random.randint(low=0, high=2, size=x_real.shape)
-        nn_rand = self.nearest_neighbors(self, a=x_real, b=x_rand, metric=metric)
+        nn_rand = self.nearest_neighbors(a=x_real, b=x_rand, metric=metric)
         
         return {'real':nn_real, 'synth':nn_synth, 'prob':nn_prob, 'rand':nn_rand}

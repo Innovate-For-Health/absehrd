@@ -1,5 +1,5 @@
 import numpy as np
-from preprocessor import preprocessor as pre
+from preprocessor import preprocessor
 import torch
 from sklearn import metrics
 
@@ -21,13 +21,22 @@ class mlp(torch.nn.Module):
 
 class realism:
     
-    def validate_univariate(r, s, header):
+    def __init__(self, missing_value):
+        self.missing_value=missing_value
+    
+    def validate_univariate(self, r, s, header, discretized=False):
         
-        m_r = pre.get_metadata(pre, r, header)
-        m_s = pre.get_metadata(pre, s, header)
+        pre=preprocessor(missing_value=self.missing_value)
         
-        d_r = pre.get_discretized_matrix(pre, r, m_r, header)
-        d_s = pre.get_discretized_matrix(pre, s, m_s, header)
+        if discretized:
+            d_r = {'x':r, 'header':header}
+            d_s = {'x':s, 'header':header}
+        else:
+            m_r = pre.get_metadata(r, header)
+            m_s = pre.get_metadata(s, header)
+    
+            d_r = pre.get_discretized_matrix(r, m_r, header)
+            d_s = pre.get_discretized_matrix(s, m_s, header)
         
         frq_r = np.zeros(shape=d_r['x'].shape[1])
         for j in range(d_r['x'].shape[1]):
@@ -41,7 +50,7 @@ class realism:
                 'header_r':d_r['header'], 'header_s':d_s['header']}
         
     
-    def validate_prediction(x_synth, y_synth, x_real, y_real, do_gan_train, n_epoch=5, debug=False):
+    def validate_prediction(self, x_synth, y_synth, x_real, y_real, do_gan_train, n_epoch=5, debug=False):
         
         if (sum(y_synth) == 0 or sum(y_synth) == len(y_synth)) and do_gan_train:
             print('Error: synthetic outcome is constant')
