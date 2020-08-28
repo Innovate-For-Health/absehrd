@@ -13,6 +13,7 @@ def main():
     file_pdf = '../plots/vignette.'+file_label+'.description_report.pdf'
     file_csv_corgan = '../output/vignette.'+file_label+'.corgan.csv'
     missing_value = -999999
+    
     pre = preprocessor(missing_value=missing_value)
     rep = report(missing_value=missing_value)
     
@@ -37,7 +38,7 @@ def main():
     
     # report
     report_status = rep.description_report(r=d['x'], s=s, col_names=d['header'], 
-                             outcome=outcome, file_pdf=file_pdf)
+                             outcome=outcome, file_pdf=file_pdf, n_epoch=100)
     
     # summary
     if report_status:

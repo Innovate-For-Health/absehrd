@@ -189,13 +189,15 @@ class corgan(object):
         dataset_train_object = Dataset(data=x_trn, transform=False)
         samplerRandom = torch.utils.data.sampler.RandomSampler(data_source=dataset_train_object, replacement=True)
         d_trn = DataLoader(dataset_train_object, batch_size=batch_size,
-                                      shuffle=False, num_workers=2, drop_last=True, sampler=samplerRandom)
+                                      shuffle=False, num_workers=0, 
+                                      drop_last=True, sampler=samplerRandom)
         
         # Test data loader
         dataset_test_object = Dataset(data=x_tst, transform=False)
         samplerRandom = torch.utils.data.sampler.RandomSampler(data_source=dataset_test_object, replacement=True)
         d_tst = DataLoader(dataset_test_object, batch_size=batch_size,
-                                     shuffle=False, num_workers=1, drop_last=True, sampler=samplerRandom)
+                                     shuffle=False, num_workers=0, 
+                                     drop_last=True, sampler=samplerRandom)
 
         
         # Initialize generator and discriminator

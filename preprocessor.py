@@ -65,7 +65,7 @@ class preprocessor:
         elif(self.get_file_type(file_name) == 'tsv'):
             if debug:
                 print('Reading tsv file ', file_name, '...')
-            arr = np.genfromtxt(file_name, delimiter='\t', skip_header=skip_header)
+            arr = np.genfromtxt(file_name, delimiter='\t', skip_header=n_header)
             if n_header > 0:
                 header = np.genfromtxt(file_name, delimiter=',',max_rows=1, skip_header=0)
                 

@@ -7,6 +7,8 @@
 
 tic = as.double(Sys.time())
 
+setwd("/Users/haleyhunter-zinck/Documents/workspace/synth/sehrd/src")
+
 library(keras)
 
 # functions --------------------------------------------------
@@ -68,7 +70,7 @@ guess_variable_type = function(vec, variable_name, custom_categorical=c(),
   return("categorical")
 }
 
-gather_meta_data = function(x)
+gather_meta_data = function(x, custom_categorical=c(), custom_continuous=c(), custom_count=c())
 {
   header = c("type", "min", "max", "zero", "one")
   m = matrix(NA, nrow=ncol(x), ncol=length(header), dimnames=list(colnames(x), header))
@@ -265,7 +267,7 @@ check_restore = function(x, x_prime, m, threshold=0.05)
     {
       x_j = as.double(x_j)
       xp_j = as.double(xp_j)
-      if(wilcox.test(tmp1,tmp2)$p.value > threshold)
+      if(wilcox.test(x_j,xp_j)$p.value > threshold)
       {
         cat(msg_pass,"\n")
       } else
@@ -358,9 +360,12 @@ process_ae_output = function(s, m, delim="__")
     if(type == "constant" || type == "binary")
     {
       x_j = round(s_j)
-    } else if(type == "continuous" || type == "count")
+    } else if(type == "continuous")
     {
       x_j = s_j
+    } else if(type == "count")
+    {
+      x_j = round(s_j)
     } else if(type == "categorical")
     {
       x_j = t(apply(s_j,1,indicator_max))
@@ -454,13 +459,16 @@ plot_list_as_density = function(my_list, labels, xlab, main = "",
 
 # main ----------------
 
+# files 
+file_pdf = "../plots/cbae.pdf"
+
 # create demo dataset
 n = 1e2
-v1 = sample(c("A","B","C"),n,replace=T)
-v2 = rnorm(n)
-v3 = rep("elephant", n)
-v4 = sample(c("hello","world"),n,replace=T)
-x = cbind(v1,v2,v3,v4)
+categorical = sample(c("A","B","C"),n,replace=T)
+continuous = rnorm(n)
+constant = rep("elephant", n)
+binary = sample(c("hello","world"),n,replace=T)
+x = cbind(categorical, continuous, constant, binary)
 m = gather_meta_data(x=x)
 s = discretize_matrix(x,m)
 
@@ -470,19 +478,34 @@ head(x)
 head(x_prime)
 check_restore(x,x_prime,m)
 
-# check autoencoder restoration
-model = train_ae(s, n_epoch=1e3)
-s_ae = predict_keras(x=s, model=model)
-p_ae = process_ae_output(s_ae, m)
-x_ae = restore_matrix(p_ae,m)
-head(x)
-head(x_ae)
-check_restore(x,x_ae,m)
+pdf(file_pdf)
+for(n_epoch in c(10,100,1000))
+{
+  title = paste0("Number of training epochs = ", n_epoch)
+  
+  # check autoencoder restoration
+  model = train_ae(s, n_epoch=n_epoch)
+  s_ae = predict_keras(x=s, model=model)
+  p_ae = process_ae_output(s_ae, m)
+  x_ae = restore_matrix(p_ae,m)
+  
+  # get categorical info
+  colors = brewer.pal(n=3,name="Set2")[1:2]
+  levels_cat = sort(unique(x[,"categorical"]))
+  tab_x = table(factor(x[,"categorical"], levels=levels_cat))
+  tab_x_ae = table(factor(x_ae[,"categorical"], levels=levels_cat))
+  barplot(rbind(tab_x, tab_x_ae), xlab = "Categorical variable", ylab = "Number of samples", beside=T, 
+          col = colors, main=title)
+  legend(x="topleft", legend=c("Real", "Synthetic"), col = colors, pch=15)
+  
+  plot_list_as_density(my_list=list(as.double(x[,"continuous"]),as.double(x_ae[,"continuous"])), 
+                       labels=c("Real","Synthetic"), xlab="Continuous variable", pal="Set2", main=title)
+}
+graphics.off()
 
-par(mfrow=c(1,1))
-plot_list_as_density(my_list=list(as.double(x[,"v2"]),as.double(x_ae[,"v2"])), labels=c("Raw","AE"), xlab="V2")
 
 # close out -----------
 
 toc = as.double(Sys.time())
 cat("Runtime: ", toc - tic, " s\n", sep="")
+

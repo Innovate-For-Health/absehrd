@@ -75,6 +75,11 @@ class report(object):
             m_buffer = 1.5
             n_decimal = 2
             
+            if type == 'prediction': 
+                ax0.set_title('Prediction report')
+            elif type == 'description':
+                ax0.set_title('Description report')
+            
             msgs = ['Real: '+str(r.shape),
                     'Synthetic: '+str(s.shape),
                     'Frequency correlation: '+str(np.round(corr_uni,n_decimal)),
@@ -90,7 +95,6 @@ class report(object):
 
             ax0.set_xticks([])
             ax0.set_yticks([])
-            ax0.set_title('Prediction report')
             for i in range(len(msgs)):
                 ax0.text(x_buffer, 1-y_buffer*(i+m_buffer), 
                      msgs[i], fontsize=fontsize, color=color)
@@ -161,16 +165,4 @@ class report(object):
                                 n_epoch=n_epoch, 
                                 n_nn_sample=n_nn_sample,
                                 type='description')
-    
-    def clustering_report(self, r, s, col_names, file_pdf, 
-                          dist_metric='euclidean', n_epoch=5):
-        
-        return self.make_report(r=r, 
-                                s=s, 
-                                col_names=col_names, 
-                                file_pdf=file_pdf, 
-                                outcome=None, 
-                                dist_metric=dist_metric, 
-                                n_epoch=n_epoch, 
-                                type='clustering')
     

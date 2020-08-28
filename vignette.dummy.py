@@ -1,5 +1,5 @@
 import numpy as np
-from preprocessor import preprocessor as pre
+from preprocessor import preprocessor
 from corgan import corgan
 from report import report
 
@@ -20,6 +20,10 @@ def main():
     file_csv_real =  '../output/vignette.dummy.real.csv'
     file_csv_corgan = '../output/vignette.dummy.corgan.csv'
     
+    # sehrd objects
+    pre = preprocessor(missing_value=-99999)
+    rep = report(missing_value=-99999)
+    
     # generate dummy dataset
     names = ['constant','binary01', 'binaryAB', 'categorical','count','continuous']
     v_constant = np.full(shape=n, fill_value=constant_value)
@@ -31,8 +35,8 @@ def main():
     x = np.column_stack((v_constant, v_binary01, v_binaryAB, v_categorical, v_count, v_continuous))
     
     # preprocess
-    m = pre.get_metadata(pre, x=x, header=names)
-    d = pre.get_discretized_matrix(pre, x, m, names)
+    m = pre.get_metadata(x=x, header=names)
+    d = pre.get_discretized_matrix(x, m, names)
     
     # generate synthetic data
     model = corgan.train(corgan, x=d['x'], n_cpu=15)
@@ -46,7 +50,7 @@ def main():
     np.savetxt(fname=file_csv_corgan, fmt='%s', X=f['x'], delimiter=',', header=','.join(f['header']))
     
     # report 
-    report_status = report.prediction_report(report, r=d['x'], s=s, col_names=d['header'], 
+    report_status = rep.prediction_report(r=d['x'], s=s, col_names=d['header'], 
                              outcome=outcome, file_pdf=file_pdf)
     
     # summary
