@@ -1,5 +1,8 @@
 import numpy as np
 import math
+from sklearn.linear_model import LogisticRegression
+from sklearn import metrics
+from sklearn import svm
 
 class privacy(object):
     
@@ -74,3 +77,35 @@ class privacy(object):
         nn_rand = self.nearest_neighbors(a=x_real, b=x_rand, metric=metric)
         
         return {'real':nn_real, 'synth':nn_synth, 'prob':nn_prob, 'rand':nn_rand}
+    
+    def membership_inference(self, r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type='lr'):
+        
+        x_as_trn = np.row_stack((a_trn,s_trn))
+        y_as_trn = np.append(np.zeros(len(a_trn)), np.ones(len(s_trn)))
+        
+        x_as_tst = np.row_stack((a_tst,s_tst))
+        y_as_tst = np.append(np.zeros(len(a_tst)), np.ones(len(s_tst)))
+        
+        x_rr_tst = np.row_stack((r_trn,r_tst))
+        y_rr_tst = np.append(np.zeros(len(r_trn)), np.ones(len(r_tst)))
+        
+        if model_type == 'lr':
+            clf = LogisticRegression(max_iter=1000, solver='liblinear', penalty='l1')
+        elif model_type == 'svm':
+            clf = svm.SVC(kernel='rbf', gamma='scale', probability=True)
+        else:
+            print('Error: ', model_type, ' is not recognized.')
+            return None
+        
+        model = clf.fit(X=x_as_trn, y=y_as_trn)
+        p_as = model.predict_proba(x_as_tst)[:,1]
+        p_rr = model.predict_proba(x_rr_tst)[:,1]
+        
+        roc_as = metrics.roc_curve(y_true=y_as_tst, y_score=p_as)
+        auc_as = metrics.roc_auc_score(y_true=y_as_tst, y_score=p_as)
+        roc_rr = metrics.roc_curve(y_true=y_rr_tst, y_score=p_rr)
+        auc_rr = metrics.roc_auc_score(y_true=y_rr_tst, y_score=p_rr)
+        
+        return {'prob_rr':p_rr, 'prob_as':p_as, 
+                'auc_as':auc_as, 'auc_rr':auc_rr}
+        

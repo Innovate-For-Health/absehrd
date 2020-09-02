@@ -10,21 +10,21 @@ class report(object):
     def __init__(self, missing_value):
         self.missing_value=missing_value
     
-    def make_report(self, r, s, col_names, file_pdf, outcome=None,  
-                          dist_metric='euclidean', n_epoch=5, 
-                          type='prediction', n_nn_sample=100):
+    def make_report(self, r_trn, r_tst, s, col_names, file_pdf, outcome=None,  
+                          dist_metric='euclidean', n_epoch=5, model_type='mlp',
+                          report_type='prediction', n_nn_sample=100):
         
         # check user input
-        if outcome is None and (type=='prediction' or type=='description'):
+        if outcome is None and (report_type=='prediction' or report_type=='description'):
             print('\nError: outcome must be specified for prediction or description report.')
             return False
         if outcome is not None and len(np.where(col_names==outcome)) == 0:
             print('\nError: outcome ', outcome, ' not a recognized feature.')
             return False
-        if len(col_names) != r.shape[1]:
+        if len(col_names) != r_trn.shape[1]:
             print('\nError: length of col_names must match length of r')
             return False
-        if r.shape[1] != s.shape[1]:
+        if r_trn.shape[1] != s.shape[1]:
             print('\nError: number of columns in r and s must match')
             return False
         
@@ -33,32 +33,43 @@ class report(object):
                 
         # extract features and outcome for prediction tests
         idx_outcome = np.where(col_names == outcome)
-        y_r = np.reshape(np.round(np.reshape(r[:,idx_outcome], newshape=(len(r),1))).astype(int), len(r))
+        y_r_trn = np.reshape(np.round(np.reshape(r_trn[:,idx_outcome], newshape=(len(r_trn),1))).astype(int), len(r_trn))
+        y_r_tst = np.reshape(np.round(np.reshape(r_tst[:,idx_outcome], newshape=(len(r_tst),1))).astype(int), len(r_tst))
         y_s = np.reshape(np.round(np.reshape(s[:,idx_outcome], newshape=(len(s),1))).astype(int), len(s))
-        x_r = np.delete(r, idx_outcome, axis=1)
+        x_r_trn = np.delete(r_trn, idx_outcome, axis=1)
+        x_r_tst = np.delete(r_tst, idx_outcome, axis=1)
         x_s = np.delete(s, idx_outcome, axis=1)
         
         # univariate
-        res_uni = rea.validate_univariate(r, s, col_names, discretized=True)
+        res_uni = rea.validate_univariate(r_tst, s, col_names, discretized=True)
         corr_uni = np.corrcoef(x=res_uni['frq_r'], y=res_uni['frq_s'])[0,1]
         
         # nearest neighbors
-        idx_r = np.random.randint(low=0, high=len(r), size=min((len(r), n_nn_sample)))
+        idx_r = np.random.randint(low=0, high=len(r_trn), size=min((len(r_trn), n_nn_sample)))
         idx_s = np.random.randint(low=0, high=len(s), size=min((len(s), n_nn_sample)))
-        res_nn = pri.assess_memorization(r[idx_r,:], s[idx_s,:], metric=dist_metric)
+        res_nn = pri.assess_memorization(r_trn[idx_r,:], s[idx_s,:], metric=dist_metric)
         
         # real-real, gan-train, gan-test
-        if type == 'prediction' or type == 'description':
-            res_gan_real = rea.gan_train(x_r, y_r, x_r, y_r, n_epoch=n_epoch)
-            res_gan_train = rea.gan_train(x_s, y_s, x_r, y_r, n_epoch=n_epoch)
-            res_gan_test = rea.gan_test(x_s, y_s, x_r, y_r, n_epoch=n_epoch)
+        if report_type == 'prediction' or report_type == 'description':
+            res_gan_real = rea.gan_train(x_synth=x_r_trn, y_synth=y_r_trn, 
+                                         x_real=x_r_tst, y_real=y_r_tst, 
+                                         n_epoch=n_epoch, 
+                                         model_type=model_type)
+            res_gan_train = rea.gan_train(x_synth=x_s, y_synth=y_s, 
+                                          x_real=x_r_tst, y_real=y_r_tst, 
+                                          n_epoch=n_epoch, 
+                                          model_type=model_type)
+            res_gan_test = rea.gan_test(x_synth=x_s, y_synth=y_s, 
+                                        x_real=x_r_tst, y_real=y_r_tst, 
+                                        n_epoch=n_epoch, 
+                                        model_type=model_type)
             
             if res_gan_real is None or res_gan_train is None or res_gan_test is None:
                 return False
             
         # regression
-        if type == 'description':
-            reg_r = LogisticRegression(max_iter=1000).fit(X=x_r, y=y_r)
+        if report_type == 'description':
+            reg_r = LogisticRegression(max_iter=1000).fit(X=x_r_tst, y=y_r_tst)
             reg_s = LogisticRegression(max_iter=1000).fit(X=x_s, y=y_s)
             coef_r = (reg_r.coef_ - np.min(reg_r.coef_)) / (np.max(reg_r.coef_) - np.min(reg_r.coef_))
             coef_s = (reg_s.coef_ - np.min(reg_s.coef_)) / (np.max(reg_s.coef_) - np.min(reg_s.coef_))
@@ -75,12 +86,13 @@ class report(object):
             m_buffer = 1.5
             n_decimal = 2
             
-            if type == 'prediction': 
+            if report_type == 'prediction': 
                 ax0.set_title('Prediction report')
-            elif type == 'description':
+            elif report_type == 'description':
                 ax0.set_title('Description report')
             
-            msgs = ['Real: '+str(r.shape),
+            msgs = ['Real training data: '+str(r_trn.shape),
+                    'Real testing data: '+str(r_tst.shape),
                     'Synthetic: '+str(s.shape),
                     'Frequency correlation: '+str(np.round(corr_uni,n_decimal)),
                     'Mean nearest neighbor distance: ',
@@ -101,7 +113,7 @@ class report(object):
             
             ax1.plot([0,1],[0,1], color="gray", linestyle='--')
             ax1.scatter(res_uni['frq_r'], res_uni['frq_s'], label='Frequency')
-            if(type == 'description'):
+            if(report_type == 'description'):
                 ax1.scatter(coef_r, coef_s, label='Importance')
             ax1.set_xlabel('Real', fontsize=fontsize)
             ax1.set_ylabel('Synthetic', fontsize=fontsize)
@@ -139,30 +151,36 @@ class report(object):
         
         return True
     
-    def prediction_report(self, r, s, col_names, outcome, file_pdf, 
-                          dist_metric='euclidean', n_epoch=5, n_nn_sample=100):
+    def prediction_report(self, r_trn, r_tst, s, col_names, outcome, file_pdf, 
+                          dist_metric='euclidean', n_epoch=5, model_type='mlp',
+                          n_nn_sample=100):
         
-        return self.make_report(r=r, 
+        return self.make_report(r_trn=r_trn,
+                                r_tst=r_tst,
                                 s=s, 
                                 col_names=col_names, 
                                 file_pdf=file_pdf, 
                                 outcome=outcome, 
                                 dist_metric=dist_metric, 
-                                n_epoch=n_epoch, 
+                                n_epoch=n_epoch,
+                                model_type=model_type,
                                 n_nn_sample=n_nn_sample,
-                                type='prediction')
+                                report_type='prediction')
         
     
-    def description_report(self, r, s, col_names, outcome, file_pdf, 
-                          dist_metric='euclidean', n_epoch=5, n_nn_sample=100):
+    def description_report(self, r_trn, r_tst, s, col_names, outcome, file_pdf, 
+                          dist_metric='euclidean', n_epoch=5, model_type='mlp',
+                          n_nn_sample=100):
         
-        return self.make_report(r=r, 
+        return self.make_report(r_trn=r_trn,
+                                r_tst=r_tst,
                                 s=s, 
                                 col_names=col_names, 
                                 file_pdf=file_pdf, 
                                 outcome=outcome, 
                                 dist_metric=dist_metric, 
                                 n_epoch=n_epoch, 
+                                model_type=model_type,
                                 n_nn_sample=n_nn_sample,
-                                type='description')
+                                report_type='description')
     

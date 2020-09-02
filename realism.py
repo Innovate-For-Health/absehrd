@@ -2,6 +2,7 @@ import numpy as np
 from preprocessor import preprocessor
 import torch
 from sklearn import metrics
+from sklearn.linear_model import LogisticRegression
 
 class mlp(torch.nn.Module):
         def __init__(self, input_size, hidden_size):
@@ -12,6 +13,7 @@ class mlp(torch.nn.Module):
             self.relu = torch.nn.ReLU()
             self.fc2 = torch.nn.Linear(self.hidden_size, 1)
             self.sigmoid = torch.nn.Sigmoid()
+            
         def forward(self, x):
             hidden = self.fc1(x)
             relu = self.relu(hidden)
@@ -50,7 +52,8 @@ class realism:
                 'header_r':d_r['header'], 'header_s':d_s['header']}
         
     
-    def validate_prediction(self, x_synth, y_synth, x_real, y_real, do_gan_train, n_epoch=5, debug=False):
+    def validate_prediction(self, x_synth, y_synth, x_real, y_real, 
+                            do_gan_train, n_epoch=5, model_type='mlp', debug=False):
         
         if (sum(y_synth) == 0 or sum(y_synth) == len(y_synth)) and do_gan_train:
             print('Error: synthetic outcome is constant')
@@ -60,43 +63,55 @@ class realism:
             print('Error: real outcome is constant')
             return None
         
-        model = mlp(input_size=x_synth.shape[1], hidden_size=256)
-        
         if do_gan_train:
-            x_train = torch.FloatTensor(x_synth)
-            y_train = torch.FloatTensor(y_synth)
-            x_test = torch.FloatTensor(x_real)
-            y_test = torch.FloatTensor(y_real)
+            x_train = x_synth
+            y_train = y_synth
+            x_test = x_real
+            y_test = y_real
         else: 
-            x_train = torch.FloatTensor(x_real)
-            y_train = torch.FloatTensor(y_real)
-            x_test = torch.FloatTensor(x_synth)
-            y_test = torch.FloatTensor(y_synth)
-        
-        criterion = torch.nn.BCELoss()
-        optimizer = torch.optim.SGD(model.parameters(), lr = 0.01)
-        
-        model.eval()
-        p = model(x_test)
-        before_train = criterion(p.squeeze(), y_test)
-        
-        if debug:
-            print('Test loss before training' , before_train.item())
-        
-        model.train()
-        for epoch in range(n_epoch):
-            optimizer.zero_grad()
-            p = model(x_train)
-            loss = criterion(p.squeeze(), y_train)
-           
+            x_train = x_real
+            y_train = y_real
+            x_test = x_synth
+            y_test = y_synth
+            
+        if model_type == 'mlp':
+            
+            x_train = torch.FloatTensor(x_train)
+            y_train = torch.FloatTensor(y_train)
+            x_test = torch.FloatTensor(x_test)
+            y_test = torch.FloatTensor(y_test)
+            
+            model = mlp(input_size=x_synth.shape[1], hidden_size=256)
+            
+            criterion = torch.nn.BCELoss()
+            optimizer = torch.optim.SGD(model.parameters(), lr = 0.01)
+            
+            model.eval()
+            p = model(x_test)
+            before_train = criterion(p.squeeze(), y_test)
+            
             if debug:
-                print('Epoch {}: train loss: {}'.format(epoch, loss.item()))
-                
-            loss.backward()
-            optimizer.step()
+                print('Test loss before training' , before_train.item())
+            
+            model.train()
+            for epoch in range(n_epoch):
+                optimizer.zero_grad()
+                p = model(x_train)
+                loss = criterion(p.squeeze(), y_train)
+               
+                if debug:
+                    print('Epoch {}: train loss: {}'.format(epoch, loss.item()))
+                    
+                loss.backward()
+                optimizer.step()
+            
+            model.eval()
+            p = model(x_test).detach().cpu().numpy()
         
-        model.eval()
-        p = model(x_test).detach().cpu().numpy()
+        elif model_type == 'lr':
+            
+            model = LogisticRegression(max_iter=1000, solver='liblinear', penalty='l1').fit(X=x_train, y=y_train)
+            p = model.predict_proba(x_test)[:,1]
        
         if do_gan_train:
             roc = metrics.roc_curve(y_true=y_real, y_score=p)
@@ -107,12 +122,18 @@ class realism:
         
         return {'mode':model, 'p':p, 'roc':roc, 'auc':auc}
     
-    def gan_train(self, x_synth, y_synth, x_real, y_real, n_epoch=5, debug=False):
+    def gan_train(self, x_synth, y_synth, x_real, y_real, n_epoch=5, 
+                  model_type='mlp', debug=False):
+        
         return self.validate_prediction(x_synth, y_synth, x_real, y_real, 
-                                   do_gan_train=True, n_epoch=n_epoch, debug=debug)
+                                   do_gan_train=True, n_epoch=n_epoch, 
+                                   model_type=model_type, debug=debug)
     
-    def gan_test(self, x_synth, y_synth, x_real, y_real, n_epoch=5, debug=False):
+    def gan_test(self, x_synth, y_synth, x_real, y_real, n_epoch=5, 
+                 model_type='mlp', debug=False):
+        
         return self.validate_prediction(x_synth, y_synth, x_real, y_real, 
-                                   do_gan_train=False, n_epoch=n_epoch, debug=debug)
+                                   do_gan_train=False, n_epoch=n_epoch, 
+                                   model_type=model_type, debug=debug)
     
     

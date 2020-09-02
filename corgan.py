@@ -110,32 +110,30 @@ class Discriminator(nn.Module):
 
 class corgan(object):
     
-    def generator_loss(y_fake, y_true, epsilon = 1e-12):
+    def generator_loss(self, y_fake, y_true, epsilon = 1e-12):
         return -0.5 * torch.mean(torch.log(y_fake + epsilon))
     
-    
-    def autoencoder_loss(x_output, y_target, epsilon = 1e-12):
+    def autoencoder_loss(self, x_output, y_target, epsilon = 1e-12):
         term = y_target * torch.log(x_output + epsilon) + (1. - y_target) * torch.log(1. - x_output + epsilon)
         loss = torch.mean(-torch.sum(term, 1), 0)
         return loss
     
-    
-    def discriminator_loss(outputs, labels):
+    def discriminator_loss(self, outputs, labels):
         loss = torch.mean((1 - labels) * outputs) - torch.mean(labels * outputs)
         return loss
         
-    def discriminator_accuracy(predicted, y_true):
+    def discriminator_accuracy(self, predicted, y_true):
         total = y_true.size(0)
         correct = (torch.abs(predicted - y_true) <= 0.5).sum().item()
         accuracy = 100.0 * correct / total
         return accuracy
     
-    def sample_transform(sample):
+    def sample_transform(self, sample):
         sample[sample >= 0.5] = 1
         sample[sample < 0.5] = 0
         return sample
     
-    def weights_init(m):
+    def weights_init(self, m):
         classname = m.__class__.__name__
         if classname.find('Conv') != -1:
             nn.init.normal_(m.weight.data, 0.0, 0.02)
@@ -402,7 +400,7 @@ class corgan(object):
                     'parameter_dict':parameter_dict}
     
     # model may be a file name to the checkpoint or a model dictionary object
-    def generate(model, n_gen):
+    def generate(self, model, n_gen):
     
         device = torch.device("cpu")
         
