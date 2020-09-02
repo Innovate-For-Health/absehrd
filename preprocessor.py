@@ -53,7 +53,7 @@ class preprocessor:
             arr = df.to_numpy()
             header = df.columns
         
-        elif(self.get_file_type(file_name) == 'csv'):
+        elif(self.get_file_type(file_name) == 'csv' or self.get_file_type(file_name) == 'tsv'):
             if debug:
                 print('Reading csv file ', file_name, '...')
             
@@ -61,13 +61,6 @@ class preprocessor:
             arr = df.to_numpy()
             if n_header > 0:
                 header = df.columns
-        
-        elif(self.get_file_type(file_name) == 'tsv'):
-            if debug:
-                print('Reading tsv file ', file_name, '...')
-            arr = np.genfromtxt(file_name, delimiter='\t', skip_header=n_header)
-            if n_header > 0:
-                header = np.genfromtxt(file_name, delimiter=',',max_rows=1, skip_header=0)
                 
         else:
             if debug:
@@ -256,18 +249,22 @@ class preprocessor:
                 
             elif c_type == 'continuous' or c_type == 'count':
                 
-                x_j = x_j.astype(np.float)
-                s_j = self.scale(x_j)
+                
                 
                 if contains_missing:
-                    idx = np.where(s_j == self.missing_value)[0]
-                    s_j[idx] = np.random.uniform(low=0, high=1, size=len(idx))
+                    idx = np.where(x_j != self.missing_value)[0]
+                    
+                    s_j_na = self.scale(self.remove_na(x_j).astype(np.float))
+                    s_j = np.random.uniform(low=0, high=1, size=len(x_j))
+                    s_j[idx] = s_j_na
                     s_j = np.column_stack((s_j,
                                        self.get_missing_column(x_j)))
                     d_header = np.append(d_header, 
                                          (header[j]+delim+header[j], 
                                           header[j]+delim+str(self.missing_value)))
                 else:
+                    x_j = x_j.astype(np.float)
+                    s_j = self.scale(x_j)
                     d_header = np.append(d_header, header[j])
                 
             elif c_type == 'categorical':
