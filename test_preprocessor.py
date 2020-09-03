@@ -286,10 +286,10 @@ class tester_pre(object):
         if res['x'].tolist() != g_x_hot.tolist():
             return False
         
-        x = np.array(['Y','X','X',None,'Y'])
+        x = np.array(['Y','X','X',missing_value,'Y'])
         res = pre.get_one_hot_encoding(x=x, label=label, delim=delim)
-        g_header = [label+delim+'X', label+delim+'Y', label+delim+'missing']
-        g_x_hot = np.array([(0,1,0),(1,0,0),(1,0,0),(0,0,1),(0,1,0)]) 
+        g_header = [label+delim+str(missing_value), label+delim+'X', label+delim+'Y']
+        g_x_hot = np.array([(0,0,1),(0,1,0),(0,1,0),(1,0,0),(0,0,1)]) 
         
         if res['header'] != g_header:
             return False
@@ -501,6 +501,8 @@ class tester_pre(object):
     
     def test_restore_matrix_missing():
         
+        # numeric missing value
+        
         missing_value = -999999
         pre = preprocessor(missing_value=missing_value)
         
@@ -546,9 +548,129 @@ class tester_pre(object):
                 else:
                     if x[i,j] != r['x'][i,j] and x[i,j] != str(r['x'][i,j]):
                         return False
+                    
+                    
+        # string missing value
+                    
+        missing_value = 'NULL'
+        pre = preprocessor(missing_value=missing_value)
+        
+        n = 1000
+        n_missing = 7
+        count_min = 5
+        count_max = 19
+        constant_value = 'helloworld'
+        binary_A = 'A'
+        binary_B = 'B'
+        categorical_values = ['X','Y','Z']
+        threshold = 1e-5
+        
+        header = ['constant','binary01', 'binaryAB', 'categorical','count','continuous']
+        v_constant = np.full(shape=n, fill_value=constant_value)
+        v_binary01 = np.concatenate((np.full(shape=n-1, fill_value=0), np.array([1])))
+        v_binaryAB = np.concatenate((np.full(shape=n-1, fill_value=binary_A), np.array([binary_B])))
+        v_categorical = np.random.choice(categorical_values, size=n)
+        v_count = np.random.randint(low=count_min, high=count_max+1, size=n)
+        v_continuous = np.random.random(size=n)
+                 
+        x = np.column_stack((v_constant, v_binary01, v_binaryAB, v_categorical, v_count, v_continuous))
+        for j in range(x.shape[1]):
+            idx = np.random.randint(low=0, high=n, size=n_missing)
+            x[idx,j] = missing_value
+        x = x.astype('O')
+        
+        m = pre.get_metadata(x, header)
+        d = pre.get_discretized_matrix(x, m, header)
+        r = pre.restore_matrix(d['x'], m, d['header'])
+        
+        # check header
+        for i in range(len(header)):
+            if r['header'][i] != header[i]:
+                return False
+        
+        # check matrix values
+        for i in range(x.shape[0]):
+            for j in range(x.shape[1]):
+                if m[j]['type'] == 'count' or m[j]['type'] == 'continuous':
+                    
+                    if str(x[i,j]) == missing_value and str(r['x'][i,j]) != missing_value:
+                        print('i=',i,' j=',j)
+                        return False
+                    if str(x[i,j]) != missing_value and str(r['x'][i,j]) == missing_value:
+                        print('i=',i,' j=',j)
+                        return False
+                    if str(x[i,j]) != missing_value and abs(float(x[i,j]) - float(r['x'][i,j])) > threshold:
+                        print('i=',i,' j=',j)
+                        return False
+                else:
+                    if x[i,j] != r['x'][i,j] and x[i,j] != str(r['x'][i,j]):
+                        print('i=',i,' j=',j)
+                        return False
+                        
+        
+        return True
+    
+    def test_is_iterable():
+        
+        pre = preprocessor(missing_value='NULL')
+        
+        if pre.is_iterable(3):
+            return False
+        
+        if not pre.is_iterable(np.array([1,2,3,4,5])):
+            return False
         
         return True
 
+
+    def test_get_na_idx():
+        
+        missing_value = 'NULL'
+        pre = preprocessor(missing_value=missing_value)
+        
+        x = np.array([4,5,2,5,3])
+        g_idx = np.array([])
+        r_idx = pre.get_na_idx(x)
+        g_idx.sort()
+        r_idx.sort()
+        
+        if len(g_idx) != len(r_idx):
+            return False
+        
+        for i in range(len(g_idx)):
+            if g_idx[i] != r_idx[i]:
+                return False
+            
+        
+        x = np.array([4, 5, 2, 5, missing_value, 3])
+        g_idx = np.array([4])
+        r_idx = pre.get_na_idx(x)
+        g_idx.sort()
+        r_idx.sort()
+        
+        if len(g_idx) != len(r_idx):
+            return False
+        
+        for i in range(len(g_idx)):
+            if g_idx[i] != r_idx[i]:
+                return False
+            
+            
+        x = np.array(['hello','world','earth','tierra',missing_value,'blah','foo',missing_value])
+        g_idx = np.array([4,7])
+        r_idx = pre.get_na_idx(x)
+        g_idx.sort()
+        r_idx.sort()
+        
+        if len(g_idx) != len(r_idx):
+            return False
+        
+        for i in range(len(g_idx)):
+            if g_idx[i] != r_idx[i]:
+                return False
+
+        
+        return True
     
 def main():
     
@@ -604,6 +726,9 @@ def main():
     
     print('Testing preprocessor.restore_matrix_missing()', end="...\t\t\t\t")
     print('PASS') if tester_pre.test_restore_matrix_missing() else print('FAIL')
+    
+    print('Testing preprocessor.is_iterable()', end="...\t\t"+buffer)
+    print('PASS') if tester_pre.test_is_iterable() else print('FAIL')
     
 if __name__ == "__main__":
     main()

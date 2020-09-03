@@ -77,20 +77,44 @@ class preprocessor:
         
         return {'x':arr, 'header':header}
     
+    def is_iterable(self, x):
+        try:
+            iter(x)
+        except Exception:
+            return False
+        else:
+            return True
+    
     def is_numeric(self, x):
-        for ele in x:
+        
+        if self.is_iterable(x):
+            for ele in x:
+                try:
+                    float(ele)
+                except: 
+                    return False
+        else:
             try:
-                f = float(ele)
+                float(ele)
             except: 
                 return False
+                
         return True
     
     def remove_na(self, x):
         
-        if self.is_numeric(x):
-            d = x[np.where(x.astype(float) != float(self.missing_value))]
-        else:
-            d = x[np.where(x != str(self.missing_value))]
+        d = []
+        
+        x_num = self.is_numeric(x)
+        m_num = self.is_numeric(self.missing_value)
+        
+        for i in range(len(x)):
+            if x_num and m_num:
+                if float(x[i]) != float(self.missing_value):
+                    d = np.append(d, x[i])
+            else:
+                if str(x[i]) != str(self.missing_value):
+                    d = np.append(d, x[i])
         
         return d
     
@@ -222,6 +246,23 @@ class preprocessor:
         
         return y
     
+    def get_na_idx(self, x):
+        
+        idx = np.array([])
+        
+        x_num = self.is_numeric(x)
+        m_num = self.is_numeric(self.missing_value)
+        
+        for i in range(len(x)):
+            if x_num and m_num:
+                if float(x[i]) == float(self.missing_value):
+                    idx = np.append(idx, i)
+            else:
+                if str(x[i]) == str(self.missing_value):
+                    idx = np.append(idx, i)
+                    
+        return idx
+    
     def get_discretized_matrix(self, x, m, header, delim='__', debug=False):
         
         d_x = np.empty(shape=0)
@@ -249,14 +290,12 @@ class preprocessor:
                 
             elif c_type == 'continuous' or c_type == 'count':
                 
-                
-                
                 if contains_missing:
-                    idx = np.where(x_j != self.missing_value)[0]
+                    idx = self.get_na_idx(x_j)
                     
-                    s_j_na = self.scale(self.remove_na(x_j).astype(np.float))
+                    s_j_notna = self.scale(self.remove_na(x_j).astype(np.float))
                     s_j = np.random.uniform(low=0, high=1, size=len(x_j))
-                    s_j[idx] = s_j_na
+                    s_j[np.setdiff1d(range(len(x_j)),idx)] = s_j_notna
                     s_j = np.column_stack((s_j,
                                        self.get_missing_column(x_j)))
                     d_header = np.append(d_header, 
@@ -370,6 +409,7 @@ class preprocessor:
                 if m[j]['type'] == 'count':
                   x_j = np.round(x_j)
                   
+                x_j = x_j.astype(str)
                 x_j[idx_missing] = self.missing_value
             
             elif m[j]['type'] == 'categorical':

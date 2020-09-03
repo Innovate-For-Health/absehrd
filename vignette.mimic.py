@@ -14,7 +14,8 @@ def main():
     file_csv_real = '../data/'+file_label+'.raw.csv'
     file_pdf = '../plots/vignette.'+file_label+'.description_report.pdf'
     file_csv_corgan = '../output/vignette.'+file_label+'.corgan.csv'
-    missing_value = -999999
+    missing_value = '-999999'
+    delim = '__'
     
     pre = preprocessor(missing_value=missing_value)
     rep = report(missing_value=missing_value)
@@ -28,7 +29,7 @@ def main():
         
     # preprocess
     m = pre.get_metadata(x=x, header=header)
-    d = pre.get_discretized_matrix(x=x, m=m, header=header)
+    d = pre.get_discretized_matrix(x=x, m=m, header=header, delim=delim)
     
     # split 
     n_subset_d = round(len(d['x'])*0.5)
@@ -51,14 +52,16 @@ def main():
     s_tst = np.array(s_tst)
     
     # reconstruct and save synthetic data
-    f = pre.restore_matrix(s=s, m=m, header=d['header'])
+    f = pre.restore_matrix(s=s, m=m, header=d['header'], delim=delim)
     
     # write to file
     np.savetxt(fname=file_csv_corgan, fmt='%s', X=f['x'], delimiter=',', header=','.join(f['header']))
     
     # report
+    idx_outcome = np.unique(np.append(np.where(d['header']==outcome), np.where(d['header']==outcome+delim+outcome)))
+    outcome_label = d['header'][idx_outcome][0]
     report_status = rep.description_report(r_trn=r_trn, r_tst=r_tst, s=s, col_names=d['header'], 
-                             outcome=outcome, file_pdf=file_pdf, n_epoch=100, 
+                             outcome=outcome_label, file_pdf=file_pdf, n_epoch=100, 
                              model_type='lr')
     
     mem_inf = pri.membership_inference(r_trn=r_trn, r_tst=r_tst, s_trn=s_trn, s_tst=s_tst,

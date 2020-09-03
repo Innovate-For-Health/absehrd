@@ -101,9 +101,7 @@ class privacy(object):
         p_as = model.predict_proba(x_as_tst)[:,1]
         p_rr = model.predict_proba(x_rr_tst)[:,1]
         
-        roc_as = metrics.roc_curve(y_true=y_as_tst, y_score=p_as)
         auc_as = metrics.roc_auc_score(y_true=y_as_tst, y_score=p_as)
-        roc_rr = metrics.roc_curve(y_true=y_rr_tst, y_score=p_rr)
         auc_rr = metrics.roc_auc_score(y_true=y_rr_tst, y_score=p_rr)
         
         return {'prob_rr':p_rr, 'prob_as':p_as, 
