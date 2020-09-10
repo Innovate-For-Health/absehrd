@@ -36,7 +36,7 @@ class preprocessor:
             
         return header
     
-    def read_file(self, file_name, n_header=0, debug=False):
+    def read_file(self, file_name, has_header=True, debug=False):
         
         arr = None
         header = []
@@ -51,16 +51,21 @@ class preprocessor:
                 print('Reading feather file ', file_name, '...')
             df = feather.read_dataframe(file_name)
             arr = df.to_numpy()
-            header = df.columns
+            if has_header:
+                header = df.columns
         
         elif(self.get_file_type(file_name) == 'csv' or self.get_file_type(file_name) == 'tsv'):
             if debug:
                 print('Reading csv file ', file_name, '...')
             
-            df = pd.read_csv(file_name)
+            if has_header:
+                df = pd.read_csv(file_name, header=0)
+                header = list(df.columns)
+                header[0] = header[0].replace('# ','')
+            else:
+                df = pd.read_csv(file_name, header=None)
             arr = df.to_numpy()
-            if n_header > 0:
-                header = df.columns
+
                 
         else:
             if debug:
@@ -95,7 +100,7 @@ class preprocessor:
                     return False
         else:
             try:
-                float(ele)
+                float(x)
             except: 
                 return False
                 
@@ -103,20 +108,22 @@ class preprocessor:
     
     def remove_na(self, x):
         
-        d = []
+        d = x
         
         x_num = self.is_numeric(x)
         m_num = self.is_numeric(self.missing_value)
-        
-        for i in range(len(x)):
-            if x_num and m_num:
-                if float(x[i]) != float(self.missing_value):
-                    d = np.append(d, x[i])
-            else:
-                if str(x[i]) != str(self.missing_value):
-                    d = np.append(d, x[i])
-        
+                            
+        if x_num and m_num:
+            idx = np.where(x.astype(float) == float(self.missing_value))
+            
+        else:
+            idx = np.where(x.astype(str) == str(self.missing_value))
+            
+        if len(idx) > 0:
+                d = np.delete(d,idx)
+    
         return d
+
     
     def get_minority_class(self, x):
         
@@ -187,7 +194,7 @@ class preprocessor:
                 m[j]['zero'] = set(np.unique(d)).difference([m[j]['one']]).pop()
             
             if(m[j]['type'] == 'constant'):
-                m[j]['zero'] = np.unique(d)[0]
+                m[j]['zero'] = d[0]
             
             if(m[j]['type'] == 'continuous' or m[j]['type'] == 'count'):
                 m[j]['min'] = np.min(d.astype(np.float))

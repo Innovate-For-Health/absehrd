@@ -69,8 +69,8 @@ class report(object):
             
         # regression
         if report_type == 'description':
-            reg_r = LogisticRegression(max_iter=1000).fit(X=x_r_tst, y=y_r_tst)
-            reg_s = LogisticRegression(max_iter=1000).fit(X=x_s, y=y_s)
+            reg_r = LogisticRegression(max_iter=10000).fit(X=x_r_tst, y=y_r_tst)
+            reg_s = LogisticRegression(max_iter=10000).fit(X=x_s, y=y_s)
             coef_r = (reg_r.coef_ - np.min(reg_r.coef_)) / (np.max(reg_r.coef_) - np.min(reg_r.coef_))
             coef_s = (reg_s.coef_ - np.min(reg_s.coef_)) / (np.max(reg_s.coef_) - np.min(reg_s.coef_))
         
@@ -108,7 +108,7 @@ class report(object):
             ax0.set_xticks([])
             ax0.set_yticks([])
             for i in range(len(msgs)):
-                ax0.text(x_buffer, 1-y_buffer*(i+m_buffer), 
+                ax0.text(x_buffer, 1+y_buffer/2-y_buffer*(i+m_buffer), 
                      msgs[i], fontsize=fontsize, color=color)
             
             ax1.plot([0,1],[0,1], color="gray", linestyle='--')

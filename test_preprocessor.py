@@ -39,44 +39,58 @@ class tester_pre(object):
         missing_value = -999999
         pre = preprocessor(missing_value=missing_value)
         
+        header = np.array(['col1','col2'])
+        default_header = np.array(['C0','C1'])
         arr = np.random.randint(low=0,high=2, size=(10,2))
         
         # npy
         file_name = 'test.npy'
-        np.save(file_name, arr)
-        res = pre.read_file(file_name, debug=False)
+        np.save(file_name, np.row_stack((header,arr)))
+        res = pre.read_file(file_name, debug=False, has_header=False)
         os.remove(file_name)
         if res is None:
             return False
+        for i in range(len(default_header)):
+            if res['header'][i] != default_header[i]:
+                return False
         
         # feather
         file_name = 'test.feather'
-        feather.write_dataframe(pd.DataFrame(arr), file_name)
-        res = pre.read_file(file_name, debug=False)
+        feather.write_dataframe(pd.DataFrame(arr, columns=header), file_name)
+        res = pre.read_file(file_name, debug=False, has_header=True)
         os.remove(file_name)
         if res is None:
             return False
+        for i in range(len(header)):
+            if res['header'][i] != header[i]:
+                print(False)
         
         # csv
         file_name = 'test.csv'
-        np.savetxt(file_name, arr, delimiter=',')
-        res = pre.read_file(file_name, debug=False)
+        np.savetxt(file_name, arr, delimiter=',', header=','.join(header))
+        res = pre.read_file(file_name, debug=False, has_header=True)
         os.remove(file_name)
         if res is None:
             return False
+        for i in range(len(header)):
+            if res['header'][i] != header[i]:
+                return False
         
         # tsv
         file_name = 'test.tsv'
-        np.savetxt(file_name, arr, delimiter='\t')
-        res = pre.read_file(file_name, debug=False)
+        np.savetxt(file_name, arr, delimiter=',', header=','.join(header))
+        res = pre.read_file(file_name, debug=False, has_header=True)
         os.remove(file_name)
         if res is None:
             return False
+        for i in range(len(header)):
+            if res['header'][i] != header[i]:
+                return False
         
         # bad file
         file_name = 'test.txt'
-        np.savetxt(file_name, arr, delimiter=' ')
-        res = pre.read_file(file_name, debug=False)
+        np.savetxt(file_name, arr, delimiter=',', header=','.join(header))
+        res = pre.read_file(file_name, debug=False, has_header=True)
         os.remove(file_name)
         if res is not None:
             return False

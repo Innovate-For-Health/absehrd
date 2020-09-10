@@ -23,7 +23,7 @@ def main():
     pri = privacy()
     
     # read nhamcs dataset
-    ftr = pre.read_file(file_csv_real, n_header=1)
+    ftr = pre.read_file(file_csv_real, has_header=True)
     header = ftr['header']
     x = ftr['x']
         
