@@ -44,8 +44,8 @@ def main():
     a_tst = np.array(a_tst)
 
     # generate synthetic data
-    model = cor.train(x=r_trn, n_cpu=15, debug=True)
-    s = cor.generate(model, n_gen)
+    model = cor.train(x=r_trn, n_cpu=16, debug=True, n_epochs=100)
+    s = cor.generate(model, n_gen=len(r_tst))
     n_subset_s = round(len(s)*0.75)
     s_trn, s_tst = random_split(s, [n_subset_s, len(s)-n_subset_s])
     s_trn = np.array(s_trn)

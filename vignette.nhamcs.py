@@ -3,12 +3,11 @@ from torch.utils.data import random_split
 from preprocessor import preprocessor
 from corgan import corgan
 from report import report
-
+from privacy import privacy
 
 def main():
     
     # parameters
-    n_gen = 1000
     outcome = 'ADMITHOS'
     file_ftr = "../data/nhamcs.raw.feather"
     file_pdf = '../plots/vignette.nhamcs.description_report.pdf'
@@ -20,6 +19,7 @@ def main():
     pre = preprocessor(missing_value=missing_value)
     rep = report(missing_value=missing_value)
     cor = corgan()
+    pri = privacy()
     
     # read nhamcs dataset
     ftr = pre.read_file(file_ftr)
@@ -43,8 +43,8 @@ def main():
     a_tst = np.array(a_tst)
 
     # generate synthetic data
-    model = cor.train(x=r_trn, n_cpu=15, debug=True)
-    s = cor.generate(model, n_gen)
+    model = cor.train(x=r_trn, n_cpu=15, debug=True,n_epochs_pretrain=150)
+    s = cor.generate(model, n_gen=len(r_tst))
     n_subset_s = round(len(s)*0.75)
     s_trn, s_tst = random_split(s, [n_subset_s, len(s)-n_subset_s])
     s_trn = np.array(s_trn)
@@ -61,7 +61,11 @@ def main():
     outcome_label = d['header'][idx_outcome][0]
     report_status = rep.description_report(r_trn=r_trn, r_tst=r_tst, s=s, col_names=d['header'], 
                              outcome=outcome_label, file_pdf=file_pdf, n_epoch=100, 
-                             model_type='lr')
+                             model_type='lr', penalty='l1')
+    
+    # membership inference
+    mem_inf = pri.membership_inference(r_trn=r_trn, r_tst=r_tst, s_trn=s_trn, s_tst=s_tst,
+                         a_trn=a_trn, a_tst=a_tst, model_type='svm')
     
     # summary
     if report_status:
@@ -70,6 +74,8 @@ def main():
         print('Error: report generation failed')
     print('Real dataset written to', file_csv_real)
     print('Synthetic dataset written to', file_csv_corgan)
+    print('AUC for authentic-synthetic: ', mem_inf['auc_as'])
+    print('AUC for real train-test: ', mem_inf['auc_rr'])
    
 if __name__ == "__main__":
     main()
