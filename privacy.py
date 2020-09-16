@@ -3,6 +3,7 @@ import math
 from sklearn.linear_model import LogisticRegression
 from sklearn import metrics
 from sklearn import svm
+from sklearn.neighbors import DistanceMetric
 
 class privacy(object):
     
@@ -15,21 +16,16 @@ class privacy(object):
         return distances[:,1]
     """
     
-    def euclidean(self, a,b):
+    def distance(self, a, b, metric='euclidean'):
         
-        d = 0
+        dist = DistanceMetric.get_metric(metric)
         
-        for i in range(len(a)):
-            d += (a[i] - b[i])**2
+        if len(a.shape) == 1:
+            a = np.reshape(a, newshape=(1,len(a)))
+        if len(b.shape) == 1:
+            b = np.reshape(b, newshape=(1,len(b)))            
             
-        return math.sqrt(d)
-    
-    def distance(self, a, b, metric):
-        
-        if metric == 'euclidean':
-            return self.euclidean(a,b)
-        
-        return None
+        return dist.pairwise(X=a, Y=b)
     
     def nearest_neighbors(self, a, b=None, metric='euclidean'):
         
