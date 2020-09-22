@@ -76,12 +76,16 @@ class privacy(object):
     
     def membership_inference(self, r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type='lr'):
         
+        
+        # real auxilliary and synthetic training set
         x_as_trn = np.row_stack((a_trn,s_trn))
         y_as_trn = np.append(np.zeros(len(a_trn)), np.ones(len(s_trn)))
         
+        # real auxilliary and synthetic test set
         x_as_tst = np.row_stack((a_tst,s_tst))
         y_as_tst = np.append(np.zeros(len(a_tst)), np.ones(len(s_tst)))
         
+        # real dataset (r_trn used to train the generator, r_tst held out)
         x_rr_tst = np.row_stack((r_trn,r_tst))
         y_rr_tst = np.append(np.zeros(len(r_trn)), np.ones(len(r_tst)))
         

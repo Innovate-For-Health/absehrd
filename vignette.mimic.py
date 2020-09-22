@@ -8,7 +8,6 @@ from privacy import privacy
 def main():
     
     # parameters
-    n_gen = 10000
     outcome = 'died_90d'
     file_label = 'mimic'
     file_csv_real = '../data/'+file_label+'.raw.csv'
