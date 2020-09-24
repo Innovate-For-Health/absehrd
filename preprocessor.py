@@ -59,11 +59,11 @@ class preprocessor:
                 print('Reading csv file ', file_name, '...')
             
             if has_header:
-                df = pd.read_csv(file_name, header=0)
+                df = pd.read_csv(file_name, header=0, keep_default_na=False)
                 header = list(df.columns)
                 header[0] = header[0].replace('# ','')
             else:
-                df = pd.read_csv(file_name, header=None)
+                df = pd.read_csv(file_name, header=None, keep_default_na=False)
             arr = df.to_numpy()
 
                 
