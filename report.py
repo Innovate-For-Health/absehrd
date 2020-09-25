@@ -10,7 +10,7 @@ class report(object):
     def __init__(self, missing_value):
         self.missing_value=missing_value
     
-    def make_report(self, r_trn, r_tst, s, col_names, file_pdf, outcome=None,  
+    def make_report(self, r_trn, r_tst, s_trn, s_tst, col_names, file_pdf, outcome=None,  
                           dist_metric='euclidean', n_epoch=5, model_type='mlp',
                           n_nn_sample=100, penalty='l2', report_type='prediction'):
         
@@ -24,30 +24,34 @@ class report(object):
         if len(col_names) != r_trn.shape[1]:
             print('\nError: length of col_names must match length of r')
             return False
-        if r_trn.shape[1] != s.shape[1]:
+        if r_trn.shape[1] != s_trn.shape[1]:
             print('\nError: number of columns in r and s must match')
             return False
         
         rea = realism(self.missing_value)
         pri = privacy()
                 
-        # extract features and outcome for prediction tests
+        # extract outcome for prediction tests
         idx_outcome = np.where(col_names == outcome)
         y_r_trn = np.reshape(np.round(np.reshape(r_trn[:,idx_outcome], newshape=(len(r_trn),1))).astype(int), len(r_trn))
         y_r_tst = np.reshape(np.round(np.reshape(r_tst[:,idx_outcome], newshape=(len(r_tst),1))).astype(int), len(r_tst))
-        y_s = np.reshape(np.round(np.reshape(s[:,idx_outcome], newshape=(len(s),1))).astype(int), len(s))
+        y_s_trn = np.reshape(np.round(np.reshape(s_trn[:,idx_outcome], newshape=(len(s_trn),1))).astype(int), len(s_trn))
+        y_s_tst = np.reshape(np.round(np.reshape(s_tst[:,idx_outcome], newshape=(len(s_tst),1))).astype(int), len(s_tst))
+        
+        # extract features for prediction tests
         x_r_trn = np.delete(r_trn, idx_outcome, axis=1)
         x_r_tst = np.delete(r_tst, idx_outcome, axis=1)
-        x_s = np.delete(s, idx_outcome, axis=1)
+        x_s_trn = np.delete(s_trn, idx_outcome, axis=1)
+        x_s_tst = np.delete(s_tst, idx_outcome, axis=1)
         
         # univariate
-        res_uni = rea.validate_univariate(r_tst, s, col_names, discretized=True)
+        res_uni = rea.validate_univariate(r_tst, s_tst, col_names, discretized=True)
         corr_uni = np.corrcoef(x=res_uni['frq_r'], y=res_uni['frq_s'])[0,1]
         
         # nearest neighbors
         idx_r = np.random.randint(low=0, high=len(r_trn), size=min((len(r_trn), n_nn_sample)))
-        idx_s = np.random.randint(low=0, high=len(s), size=min((len(s), n_nn_sample)))
-        res_nn = pri.assess_memorization(r_trn[idx_r,:], s[idx_s,:], metric=dist_metric)
+        idx_s = np.random.randint(low=0, high=len(s_trn), size=min((len(s_trn), n_nn_sample)))
+        res_nn = pri.assess_memorization(r_trn[idx_r,:], s_trn[idx_s,:], metric=dist_metric)
         
         # real-real, gan-train, gan-test
         if report_type == 'prediction' or report_type == 'description':
@@ -55,11 +59,11 @@ class report(object):
                                          x_real=x_r_tst, y_real=y_r_tst, 
                                          n_epoch=n_epoch, 
                                          model_type=model_type)
-            res_gan_train = rea.gan_train(x_synth=x_s, y_synth=y_s, 
+            res_gan_train = rea.gan_train(x_synth=x_s_trn, y_synth=y_s_trn, 
                                           x_real=x_r_tst, y_real=y_r_tst, 
                                           n_epoch=n_epoch, 
                                           model_type=model_type)
-            res_gan_test = rea.gan_test(x_synth=x_s, y_synth=y_s, 
+            res_gan_test = rea.gan_test(x_synth=x_s_tst, y_synth=y_s_tst, 
                                         x_real=x_r_tst, y_real=y_r_tst, 
                                         n_epoch=n_epoch, 
                                         model_type=model_type)
@@ -89,10 +93,10 @@ class report(object):
             coef_r = (reg_r.coef_ - np.min(reg_r.coef_)) / (np.max(reg_r.coef_) - np.min(reg_r.coef_))
             
             for i in range(n_rep):
-                x_s_thresh = x_s
-                x_s_thresh[np.where(x_s<threshold)] = 0
-                x_s_thresh[np.where(x_s > 1 - threshold)] = 1
-                reg_s = LogisticRegression(max_iter=max_iter, solver=solver, penalty=penalty, l1_ratio=l1_ratio).fit(X=x_s_thresh, y=y_s)
+                x_s_thresh = x_s_tst
+                x_s_thresh[np.where(x_s_tst<threshold)] = 0
+                x_s_thresh[np.where(x_s_tst > 1 - threshold)] = 1
+                reg_s = LogisticRegression(max_iter=max_iter, solver=solver, penalty=penalty, l1_ratio=l1_ratio).fit(X=x_s_thresh, y=y_s_tst)
                 coef_s = (reg_s.coef_ - np.min(reg_s.coef_)) / (np.max(reg_s.coef_) - np.min(reg_s.coef_))
                 corr_imp_rep = np.append(corr_imp_rep, np.corrcoef(x=coef_r, y=coef_s)[0,1])
             
@@ -117,9 +121,8 @@ class report(object):
                 ax0.set_title('Description report')
                 str_frq_corr = 'Correlation (frq, imp): '+str(np.round(corr_uni,n_decimal))+', '+str(np.round(corr_imp,n_decimal))
             
-            msgs = ['Real training data: '+str(r_trn.shape),
-                    'Real testing data: '+str(r_tst.shape),
-                    'Synthetic: '+str(s.shape),
+            msgs = ['Training (real | synth): '+str(r_trn.shape) + ' | ' + str(s_trn.shape),
+                    'Testing (real | synth): '+str(r_tst.shape) + ' | ' + str(s_tst.shape),
                     str_frq_corr,
                     'Mean nearest neighbor distance: ',
                     '  > Real-real: '+str(np.round(np.mean(res_nn['real']),n_decimal)),
@@ -177,13 +180,14 @@ class report(object):
         
         return True
     
-    def prediction_report(self, r_trn, r_tst, s, col_names, outcome, file_pdf, 
+    def prediction_report(self, r_trn, r_tst, s_trn, s_tst, col_names, outcome, file_pdf, 
                           dist_metric='euclidean', n_epoch=5, model_type='mlp',
                           n_nn_sample=100, penalty='l2'):
         
         return self.make_report(r_trn=r_trn,
                                 r_tst=r_tst,
-                                s=s, 
+                                s_trn=s_trn,
+                                s_tst=s_tst, 
                                 col_names=col_names, 
                                 file_pdf=file_pdf, 
                                 outcome=outcome, 
@@ -195,13 +199,14 @@ class report(object):
                                 report_type='prediction')
         
     
-    def description_report(self, r_trn, r_tst, s, col_names, outcome, file_pdf, 
+    def description_report(self, r_trn, r_tst, s_trn, s_tst, col_names, outcome, file_pdf, 
                           dist_metric='euclidean', n_epoch=5, model_type='mlp',
                           n_nn_sample=100, penalty='l2'):
         
         return self.make_report(r_trn=r_trn,
                                 r_tst=r_tst,
-                                s=s, 
+                                s_trn=s_trn,
+                                s_tst=s_tst,
                                 col_names=col_names, 
                                 file_pdf=file_pdf, 
                                 outcome=outcome, 

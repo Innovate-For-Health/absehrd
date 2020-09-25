@@ -66,7 +66,7 @@ def main():
         save_obj(model, file_model)
     
     # generate synthetic data
-    s = cor.generate(model, n_gen=len(r_tst))
+    s = cor.generate(model, n_gen=len(r_trn)+len(r_tst))
     n_subset_s = round(len(s)*0.75)
     s_trn, s_tst = random_split(s, [n_subset_s, len(s)-n_subset_s])
     s_trn = np.array(s_trn)
@@ -81,12 +81,14 @@ def main():
     # report
     idx_outcome = np.unique(np.append(np.where(d['header']==outcome), np.where(d['header']==outcome+delim+outcome)))
     outcome_label = d['header'][idx_outcome][0]
-    report_status_desc = rep.description_report(r_trn=r_trn, r_tst=r_tst, s=s, col_names=d['header'], 
-                             outcome=outcome_label, file_pdf=file_desc_pdf, n_epoch=100, 
-                             model_type='lr')
-    report_status_pred = rep.prediction_report(r_trn=r_trn, r_tst=r_tst, s=s, col_names=d['header'], 
-                             outcome=outcome_label, file_pdf=file_pred_pdf, n_epoch=100, 
-                             model_type='lr')
+    report_status_desc = rep.description_report(r_trn=r_trn, r_tst=r_tst, 
+                             s_trn=s_trn, s_tst=s_tst, col_names=d['header'], 
+                             outcome=outcome_label, file_pdf=file_desc_pdf, 
+                             n_epoch=100, model_type='lr')
+    report_status_pred = rep.prediction_report(r_trn=r_trn, r_tst=r_tst, 
+                             s_trn=s_trn, s_tst=s_tst, col_names=d['header'], 
+                             outcome=outcome_label, file_pdf=file_pred_pdf, 
+                             n_epoch=100, model_type='lr')
     
     #mem_inf = pri.membership_inference(r_trn=r_trn, r_tst=r_tst, s_trn=s_trn, s_tst=s_tst,
     #                        a_trn=a_trn, a_tst=a_tst, model_type='svm')
