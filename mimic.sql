@@ -1,223 +1,135 @@
-SET search_path TO mimiciii;
+WITH DG1 (hadm_id, hf1, long_title)
+AS (
+	SELECT hadm_id, MAX(CASE WHEN M.icd9_code ILIKE '428%' THEN 1 ELSE 0 END) AS hf1
+		, D.long_title
+	FROM mimiciii.diagnoses_icd AS M
+		JOIN mimiciii.d_icd_diagnoses AS D
+			ON M.icd9_code = D.icd9_code 
+	WHERE seq_num = 1
+	GROUP BY M.hadm_id, D.long_title
+)
 
-/*
--- percentage of patients with valid date of death
--- ~ 33% of patients have a date of death
-SELECT COUNT(*)
-	, SUM(CASE WHEN dod IS NULL THEN 0 ELSE 1 END) AS N_DEAD
-	, SUM(CASE WHEN dod IS NULL THEN 0 ELSE 1 END) * 100.0 / COUNT(*) AS PERC_DEAD
-FROM mimiciii.patients
-LIMIT 10 
-*/
+/* determine if admission had an 'HF, NOS' secondary diagnosis (1) or not (0) */
+, DG2 (hadm_id, hf2)
+AS (
+	SELECT hadm_id, MAX(CASE WHEN icd9_code ILIKE '428%' THEN 1 ELSE 0 END) AS hf2
+	FROM mimiciii.diagnoses_icd 
+	WHERE seq_num != 1
+	GROUP BY hadm_id
+)
 
+/* determine if admission had an 'HTN' diagnosis (1) or not (0) */
+, DGHTN (hadm_id, htn)
+AS (
+	SELECT hadm_id,	MAX(CASE WHEN icd9_code ILIKE '401%' THEN 1 ELSE 0 END) AS htn
+	FROM mimiciii.diagnoses_icd 
+	GROUP BY hadm_id	
+)
 
-/*
--- do all patients in the cohort have ICU admissions?
--- 46476 unique subject_ids for patients table
--- 46520 unique subject_ids for icustays table
-SELECT 'patients', COUNT(DISTINCT subject_id) AS N_PT
-FROM mimiciii.patients
-UNION 
-SELECT 'icustays', COUNT(DISTINCT subject_id) AS N_PT
-FROM mimiciii.icustays
---*/
+/* determine if admission had an 'DM2' diagnosis (1) or not (0) */
+, DGDM2 (hadm_id, dm2)
+AS (
+	SELECT hadm_id, MAX(CASE WHEN icd9_code ILIKE '250%' THEN 1 ELSE 0 END) AS dm2
+	FROM mimiciii.diagnoses_icd 
+	GROUP BY hadm_id
+)
 
+/* determine if admission had an 'CKD' diagnosis (1) or not (0) */
+, DGCKD (hadm_id, ckd)
+AS (
+	SELECT hadm_id, MAX(CASE WHEN icd9_code ILIKE '585%' THEN 1 ELSE 0 END) AS ckd
+	FROM mimiciii.diagnoses_icd 
+	GROUP BY hadm_id
+)
 
-/*
--- do all recorded admissions have associated ICU stays?
--- vast majority of admissions have only 1 icustay associated (54526)
--- only 1190 of admissions have 0 icu stays
-SELECT Z.N_ICUSTAY
-	, COUNT(Z.N_ICUSTAY) AS N_ADM
+/* return total ICU LOS and max SAPSII over all ICU stays for a single admission */
+, IESP (hadm_id, total_icu_los, max_sapsii)
+AS (
+	SELECT IE.hadm_id
+		, SUM(IE.los) AS total_icu_los
+		, MAX(SP.sapsii) AS max_sapsii
+	FROM mimiciii.icustays AS IE
+		JOIN mimiciii.sapsii AS SP
+			ON IE.icustay_id = SP.icustay_id
+	GROUP BY IE.hadm_id
+)
+
+/* get average glucose and average sodium lab values for each admission */
+, LE (hadm_id, avg_glucose, avg_sodium)
+AS (
+	SELECT Z.hadm_id, AVG(Z.glucose) AS avg_glucose, AVG(Z.sodium) AS avg_sodium
+	FROM (
+		SELECT ADM.hadm_id
+			, CASE WHEN LE.label = 'Glucose' THEN LE.valuenum ELSE NULL END AS glucose
+			, CASE WHEN LE.label = 'Sodium' THEN LE.valuenum ELSE NULL END AS sodium
+		FROM mimiciii.admissions AS ADM
+			JOIN ( 
+					SELECT LE.hadm_id, LD.label, LE.valuenum
+					FROM mimiciii.labevents AS LE
+						JOIN mimiciii.d_labitems AS LD
+							ON LE.itemid = LD.itemid
+					WHERE LD.label IN ('Glucose', 'Sodium') AND LD.fluid = 'Blood'
+				) AS LE
+				ON LE.hadm_id = ADM.hadm_id 
+	) AS Z
+	GROUP BY Z.hadm_id
+)
+
+/* get list of admissions that have at least one ICU stay */
+, ICU (hadm_id, n_icustay)
+AS (
+	SELECT ADM.hadm_id, COUNT(DISTINCT icustay_id) AS n_icustay
+	FROM mimiciii.admissions AS ADM
+		JOIN mimiciii.icustays AS ICU
+			ON ADM.hadm_id = ICU.hadm_id
+	GROUP BY ADM.hadm_id
+)
+
+, constants (sval, ival)
+AS (SELECT '-999999',-999999)
+
+SELECT CASE WHEN SC.ethnicity IS NULL THEN (SELECT sval from constants) ELSE SC.ethnicity END AS ethnicity
+	, CASE WHEN SC.gender IS NULL THEN (SELECT sval from constants) ELSE SC.gender END AS gender
+	, CASE WHEN SC.age_at_admit IS NULL THEN (SELECT ival from constants) ELSE SC.age_at_admit END AS age_at_admit
+	, CASE WHEN SC.n_icustay IS NULL THEN (SELECT ival from constants) ELSE SC.n_icustay END AS n_icustay
+	, CASE WHEN SC.max_sapsii IS NULL THEN (SELECT ival from constants) ELSE SC.max_sapsii END AS max_sapsii
+	, CASE WHEN SC.total_icu_los IS NULL THEN (SELECT ival from constants) ELSE SC.total_icu_los END AS total_icu_los
+	, CASE WHEN SC.avg_glucose IS NULL THEN (SELECT ival from constants) ELSE SC.avg_glucose END AS avg_glucose
+	, CASE WHEN SC.avg_sodium IS NULL THEN (SELECT ival from constants) ELSE SC.avg_sodium END AS avg_sodium
+	, CASE WHEN SC.hf1 IS NULL THEN (SELECT ival from constants) ELSE SC.hf1 END AS hf1
+	, CASE WHEN SC.hf2 IS NULL THEN (SELECT ival from constants) ELSE SC.hf2 END AS hf2
+	, CASE WHEN SC.htn IS NULL THEN (SELECT ival from constants) ELSE SC.htn END AS htn
+	, CASE WHEN SC.dm2 IS NULL THEN (SELECT ival from constants) ELSE SC.dm2 END AS dm2
+	, CASE WHEN SC.ckd IS NULL THEN (SELECT ival from constants) ELSE SC.ckd END AS ckd
+	, CASE WHEN SC.died_90d IS NULL THEN (SELECT ival from constants) ELSE SC.died_90d END AS died_90d
 FROM (
-	SELECT A.hadm_id , COUNT(DISTINCT I.icustay_id) AS N_ICUSTAY
-	FROM mimiciii.admissions AS A
-		LEFT JOIN mimiciii.icustays AS I
-			ON A.hadm_id = I.hadm_id
-	GROUP BY A.hadm_id) AS Z
-GROUP BY Z.N_ICUSTAY
-ORDER BY Z.N_ICUSTAY;
---*/
-
-/*
--- confirm i can calculate who died within a certain time period
-SELECT CASE WHEN A.deathtime IS NOT NULL THEN 1 ELSE 0 END AS DIED_ADM
-	, CASE WHEN P.dod BETWEEN A.admittime AND (A.dischtime + INTERVAL '30 day') THEN 1 ELSE 0 END AS DIED_MONTH
-	, CASE WHEN P.dod BETWEEN A.admittime AND (A.dischtime + INTERVAL '365 day') THEN 1 ELSE 0 END AS DIED_YEAR
-	, A.dischtime
-	, P.dod
-	, DATE_PART('day', P.dod - A.dischtime)
-FROM mimiciii.admissions AS A
-	JOIN mimiciii.patients AS P
-		ON A.subject_id = P.subject_id
-LIMIT 100
---*/
-
-/*
--- fraction of admissions resulting in death after a certain time period
--- (admission | month | year) = (9% | 13% | 23%)
--- let's use death during admission as the outcome variable...
-SELECT SUM(CASE WHEN A.deathtime IS NOT NULL THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS PERC_DIED_ADM
-	, SUM(CASE WHEN P.dod BETWEEN A.admittime AND (A.dischtime + INTERVAL '30 day') THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS PERC_DIED_MONTH
-	, SUM(CASE WHEN P.dod BETWEEN A.admittime AND (A.dischtime + INTERVAL '365 day') THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS PERC_DIED_YEAR
-FROM mimiciii.admissions AS A
-	JOIN mimiciii.patients AS P
-		ON A.subject_id = P.subject_id
---*/
-
-/*
--- is discharge date the same as deathdate if people die during their admission?
--- 99% match... should i filter out those that don't? yes... because it results in LOS
-SELECT COUNT(*)
-	, SUM(CASE WHEN A.dischtime = A.deathtime THEN 1 ELSE 0 END) AS N_DEATH_EQUALS_DISCH
-	, 100.0 * SUM(CASE WHEN A.dischtime = A.deathtime THEN 1 ELSE 0 END) / COUNT(*) AS P_DEATH_EQUALS_DISCH
-FROM mimiciii.admissions AS A
-WHERE A.deathtime IS NOT NULL
---*/
-
-/*
--- what is the LOS for patients who die during their admissions
-SELECT DATE_PART('day', A.dischtime - A.admittime) * 24 + DATE_PART('hour', A.dischtime - A.admittime) AS LOS_HOUR
-	, DATE_PART('day', A.dischtime - A.admittime) + DATE_PART('hour', A.dischtime - A.admittime) / 24.0 AS LOS_DAY
-FROM mimiciii.admissions AS A
-WHERE A.deathtime IS NOT NULL
-	AND A.dischtime >= A.admittime
---*/
-
-/*
-CREATE OR REPLACE FUNCTION _final_median(NUMERIC[])
-   RETURNS NUMERIC AS
-$$
-   SELECT AVG(val)
-   FROM (
-     SELECT val
-     FROM unnest($1) val
-     ORDER BY 1
-     LIMIT  2 - MOD(array_upper($1, 1), 2)
-     OFFSET CEIL(array_upper($1, 1) / 2.0) - 1
-   ) sub;
-$$
-LANGUAGE 'sql' IMMUTABLE;
- 
-CREATE AGGREGATE median(NUMERIC) (
-  SFUNC=array_append,
-  STYPE=NUMERIC[],
-  FINALFUNC=_final_median,
-  INITCOND='{}'
-);
---*/
-/*
--- what is average LOS for patients who die during their admissions
-SELECT round(MIN(Z.LOS_DAY),2) AS MIN_LOS_DAY
-	, round(median(Z.LOS_DAY),2) AS MEDIAN_LOS_DAY
-	, round(AVG(Z.LOS_DAY),2) AS AVG_LOS_DAY
-	, round(MAX(Z.LOS_DAY),2) AS MAX_LOS_DAY
-FROM (
-SELECT CAST(DATE_PART('day', A.dischtime - A.admittime) + DATE_PART('hour', A.dischtime - A.admittime) / 24.0 AS NUMERIC) AS LOS_DAY
-FROM mimiciii.admissions AS A
-WHERE A.deathtime IS NOT NULL
-	AND A.dischtime >= A.admittime) AS Z;
---*/
-
-/* do all admissions originate from the ED? no */
-/*
-SELECT *
-FROM admissions
-LIMIT 10;
---*/
-
-/* get the primary diagnosis code for the most recent previous discharge within a year of the index admission */
-/*
-SELECT Z.*
-FROM (
-SELECT A1.hadm_id, A2.hadm_id, DD.icd9_code, DD.short_title, DD.long_title
-	, ROW_NUMBER() OVER (PARTITION BY A1.hadm_id ORDER BY A2.dischtime DESC) AS RN
-FROM admissions AS A1
-	JOIN admissions AS A2
-		ON A1.subject_id = A2.subject_id AND A1.hadm_id != A2.hadm_id 
-			AND A2.admittime BETWEEN A1.dischtime - INTERVAL '365day' AND A1.admittime
-	JOIN diagnoses_icd AS D2
-		ON A2.hadm_id = D2.hadm_id
-	JOIN d_icd_diagnoses AS DD
-		ON D2.icd9_code = DD.icd9_code
-WHERE D2.seq_num = 1) AS Z
-WHERE Z.RN = 1
-LIMIT 10
---*/
-
-/* data mart for predicting mortality during admission */
--- what about diagnosis codes from last admission? if there is a last admission?  m
---/*
-SELECT A.hadm_id
-	, CASE WHEN A.deathtime IS NOT NULL THEN 1 ELSE 0 END AS died_adm
-	, P.gender
-	, DATE_PART('year', A.admittime) - DATE_PART('year', P.dob) AS age
-	, A.marital_status
-	, A.insurance
-	, A.ethnicity
-	, A.language
-	, A.admission_type
-	, A.admission_location
-	, CASE WHEN I30.N_ICU_30_DAY IS NULL THEN 0 ELSE I30.N_ICU_30_DAY END AS N_ICU_30_DAY
-	, CASE WHEN I365.N_ICU_365_DAY IS NULL THEN 0 ELSE I365.N_ICU_365_DAY END AS N_ICU_365_DAY
-	, CASE WHEN A30.N_ADM_30_DAY IS NULL THEN 0 ELSE A30.N_ADM_30_DAY END AS N_ADM_30_DAY
-	, CASE WHEN A365.N_ADM_365_DAY IS NULL THEN 0 ELSE A365.N_ADM_365_DAY END AS N_ADM_365_DAY
-	, D.icd9_code AS PREV_ADM_DIAG_CODE
-	, D.short_title AS PREV_ADM_DIAG_TITLE
-FROM admissions AS A
-	JOIN patients AS P
-		ON A.subject_id = P.subject_id
-	LEFT JOIN 
-		(SELECT A.hadm_id, COUNT(DISTINCT I.icustay_id) AS N_ICU_30_DAY
-		 FROM admissions AS A 
-		 	JOIN icustays AS I
-				ON A.subject_id = I.subject_id AND I.outtime BETWEEN A.admittime - INTERVAL '30day' AND A.admittime
-		 GROUP BY A.hadm_id
-		 ) AS I30
-		 	ON I30.hadm_id = A.hadm_id
-	LEFT JOIN 
-		(SELECT A.hadm_id, COUNT(DISTINCT I.icustay_id) AS N_ICU_365_DAY
-		 FROM admissions AS A 
-		 	JOIN icustays AS I
-				ON A.subject_id = I.subject_id AND I.outtime BETWEEN A.admittime - INTERVAL '365day' AND A.admittime
-		 GROUP BY A.hadm_id
-		 ) AS I365
-		 	ON I365.hadm_id = A.hadm_id
-	LEFT JOIN 
-		(SELECT A1.hadm_id, COUNT(DISTINCT A2.hadm_id) AS N_ADM_30_DAY
-		 FROM admissions AS A1
-		 	JOIN admissions AS A2
-				ON A1.subject_id = A2.subject_id AND A1.hadm_id != A2.hadm_id 
-		 			AND A2.admittime BETWEEN A1.dischtime - INTERVAL '30day' AND A1.admittime
-		 GROUP BY A1.hadm_id
-		 ) AS A30
-		 	ON A30.hadm_id = A.hadm_id
-	LEFT JOIN 
-		(SELECT A1.hadm_id, COUNT(DISTINCT A2.hadm_id) AS N_ADM_365_DAY
-		 FROM admissions AS A1
-		 	JOIN admissions AS A2
-				ON A1.subject_id = A2.subject_id AND A1.hadm_id != A2.hadm_id 
-		 			AND A2.admittime BETWEEN A1.dischtime - INTERVAL '365day' AND A1.admittime
-		 GROUP BY A1.hadm_id
-		 ) AS A365
-		 	ON A365.hadm_id = A.hadm_id
-	LEFT JOIN 
-		(SELECT Z.*
-			FROM (
-			SELECT A1.hadm_id, DD.icd9_code, DD.short_title, DD.long_title
-				, ROW_NUMBER() OVER (PARTITION BY A1.hadm_id ORDER BY A2.dischtime DESC) AS RN
-			FROM admissions AS A1
-				JOIN admissions AS A2
-					ON A1.subject_id = A2.subject_id AND A1.hadm_id != A2.hadm_id 
-						AND A2.admittime BETWEEN A1.dischtime - INTERVAL '365day' AND A1.admittime
-				JOIN diagnoses_icd AS D2
-					ON A2.hadm_id = D2.hadm_id
-				JOIN d_icd_diagnoses AS DD
-					ON D2.icd9_code = DD.icd9_code
-			WHERE D2.seq_num = 1) AS Z
-			WHERE Z.RN = 1
-			) AS D
-			ON D.hadm_id = A.hadm_id
-LIMIT 100
---*/
-
+SELECT ADM.ethnicity
+		, PAT.gender
+		, DATE_PART('year', ADM.admittime) - DATE_PART('year', PAT.dob) AS age_at_admit
+		, ICU.n_icustay
+		, IESP.max_sapsii
+		, IESP.total_icu_los
+		, LE.avg_glucose
+		, LE.avg_sodium
+		, CASE WHEN DG1.hf1 IS NULL THEN 0 ELSE DG1.hf1 END AS hf1
+		, CASE WHEN DG2.hf2 IS NULL THEN 0 ELSE DG2.hf2 END AS hf2
+		, CASE WHEN DGHTN.htn IS NULL THEN 0 ELSE DGHTN.htn END AS htn
+		, CASE WHEN DGDM2.dm2 IS NULL THEN 0 ELSE DGDM2.dm2 END AS dm2
+		, CASE WHEN DGCKD.ckd IS NULL THEN 0 ELSE DGCKD.ckd END AS ckd
+		, CASE WHEN DATE_PART('day', pat.dod - adm.admittime) <= 90 THEN 1
+			ELSE 0 END AS died_90d
+		, ROW_NUMBER() OVER (PARTITION BY adm.subject_id ORDER BY adm.admittime ASC) AS adm_num
+FROM mimiciii.admissions AS ADM
+	LEFT JOIN mimiciii.patients AS PAT ON PAT.subject_id = ADM.subject_id
+	LEFT JOIN DG1 ON DG1.hadm_id = ADM.hadm_id
+	LEFT JOIN DG2 ON DG2.hadm_id = ADM.hadm_id
+	LEFT JOIN DGHTN ON DGHTN.hadm_id = ADM.hadm_id
+	LEFT JOIN DGDM2 ON DGDM2.hadm_id = ADM.hadm_id
+	LEFT JOIN DGCKD ON DGCKD.hadm_id = ADM.hadm_id
+	LEFT JOIN IESP ON IESP.hadm_id = ADM.hadm_id
+	LEFT JOIN LE ON LE.hadm_id = ADM.hadm_id
+	JOIN ICU ON ICU.hadm_id = ADM.hadm_id
+) AS SC
+WHERE SC.adm_num = 1	
+	AND SC.age_at_admit >= 18
+	AND (SC.hf1 = 0 AND SC.hf2 = 1 OR SC.hf1 = 0 AND SC.hf2 = 0)
