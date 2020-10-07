@@ -18,18 +18,25 @@ def load_obj(file_name):
 def main():
     
     # parameters
-    outcome = 'died_90d'
     file_label = 'mimic'
+    file_version = '1'
     file_csv_real = '../data/'+file_label+'.raw.csv'
     file_desc_pdf = '../plots/vignette.'+file_label+'.description_report.pdf'
     file_pred_pdf = '../plots/vignette.'+file_label+'.prediction_report.pdf'
-    file_csv_corgan = '../output/vignette.'+file_label+'.corgan.csv'
-    file_model = '../output/vignette.'+file_label+'.corgan.pkl'
+    file_real_trn =  '../output/'+file_label+'_real_train_v'+file_version+'.csv'
+    file_real_tst =  '../output/'+file_label+'_real_test_v'+file_version+'.csv'
+    file_aux_trn = '../output/'+file_label+'_aux_train_v'+file_version+'.csv'
+    file_aux_tst = '../output/'+file_label+'_aux_test_v'+file_version+'.csv'
+    file_synth = '../output/'+file_label+'_synth_v'+file_version+'.csv'
+    file_model = '../output/'+file_label+'.corgan.pkl'
+    
+    # parameters
+    outcome = 'died_90d'
     missing_value = '-999999'
     delim = '__'
     n_epoch = 100
     n_epoch_pre = 100
-    use_saved_model = True
+    use_saved_model = False
     
     pre = preprocessor(missing_value=missing_value)
     rep = report(missing_value=missing_value)
@@ -74,9 +81,17 @@ def main():
     
     # reconstruct and save synthetic data
     f = pre.restore_matrix(s=s, m=m, header=d['header'], delim=delim)
-    
+    x_r_trn = pre.restore_matrix(s=r_trn, m=m, header=d['header'])
+    x_r_tst = pre.restore_matrix(s=r_tst, m=m, header=d['header'])
+    x_a_trn = pre.restore_matrix(s=a_trn, m=m, header=d['header'])
+    x_a_tst = pre.restore_matrix(s=a_tst, m=m, header=d['header'])
+
     # write to file
-    np.savetxt(fname=file_csv_corgan, fmt='%s', X=f['x'], delimiter=',', header=','.join(f['header']))
+    np.savetxt(fname=file_real_trn, fmt='%s', X=x_r_trn['x'], delimiter=',', header=','.join(x_r_trn['header']))
+    np.savetxt(fname=file_real_tst, fmt='%s', X=x_r_tst['x'], delimiter=',', header=','.join(x_r_tst['header']))
+    np.savetxt(fname=file_aux_trn, fmt='%s', X=x_a_trn['x'], delimiter=',', header=','.join(x_a_trn['header']))
+    np.savetxt(fname=file_aux_tst, fmt='%s', X=x_a_tst['x'], delimiter=',', header=','.join(x_a_tst['header']))
+    np.savetxt(fname=file_synth, fmt='%s', X=f['x'], delimiter=',', header=','.join(f['header']))
     
     # report
     idx_outcome = np.unique(np.append(np.where(d['header']==outcome), np.where(d['header']==outcome+delim+outcome)))
@@ -102,8 +117,6 @@ def main():
         print('Description report written to', file_pred_pdf)
     else:
         print('Error: prediction report generation failed')
-    print('Real dataset written to', file_csv_real)
-    print('Synthetic dataset written to', file_csv_corgan)
     #print('AUC for authentic-synthetic: ', mem_inf['auc_as'])
     #print('AUC for real train-test: ', mem_inf['auc_rr'])
     
