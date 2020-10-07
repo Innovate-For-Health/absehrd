@@ -3,6 +3,7 @@ from preprocessor import preprocessor
 import torch
 from sklearn import metrics
 from sklearn.linear_model import LogisticRegression
+from scipy.stats import norm
 
 class mlp(torch.nn.Module):
         def __init__(self, input_size, hidden_size):
@@ -135,5 +136,42 @@ class realism:
         return self.validate_prediction(x_synth, y_synth, x_real, y_real, 
                                    do_gan_train=False, n_epoch=n_epoch, 
                                    model_type=model_type, debug=debug)
+    
+    def kl_divergence(self, p, q):
+        return np.sum(np.where(p != 0, p * np.log(p / q), 0))
+    
+    def validate_feature(self, r_feat, s_feat, var_type
+                         , categorical_metric = 'euclidean'
+                         , numerical_metric = 'kl'):
+        
+        dist = None
+        
+        if var_type in ('constant','binary','categorical'):
+            
+            uniq_vals = np.unique(r_feat)
+            r_frq = np.zeros(shape=uniq_vals.shape)
+            s_frq = np.zeros(shape=uniq_vals.shape)
+            
+            for i in range(len(uniq_vals)):
+                r_frq[i] = np.count_nonzero(r_feat == uniq_vals[i])
+                s_frq[i] = np.count_nonzero(s_feat == uniq_vals[i])
+                
+            r_frq = r_frq / len(r_feat)
+            s_frq = s_frq / len(s_feat)
+            
+            if categorical_metric == 'euclidean':
+                dist = np.linalg.norm(r_frq-s_frq)
+        
+        elif var_type in ('continuous','count'):
+        
+            if numerical_metric == 'kl':
+                
+                r_pdf = norm.pdf(r_feat.astype(float))
+                s_pdf = norm.pdf(s_feat.astype(float))
+                dist = self.kl_divergence(r_pdf, s_pdf)
+            
+        return dist
+        
+        
     
     
