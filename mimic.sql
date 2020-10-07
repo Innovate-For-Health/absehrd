@@ -96,12 +96,12 @@ SELECT CASE WHEN SC.ethnicity IS NULL THEN (SELECT sval from constants) ELSE SC.
 	, CASE WHEN SC.total_icu_los IS NULL THEN (SELECT ival from constants) ELSE SC.total_icu_los END AS total_icu_los
 	, CASE WHEN SC.avg_glucose IS NULL THEN (SELECT ival from constants) ELSE SC.avg_glucose END AS avg_glucose
 	, CASE WHEN SC.avg_sodium IS NULL THEN (SELECT ival from constants) ELSE SC.avg_sodium END AS avg_sodium
-	, CASE WHEN SC.hf1 IS NULL THEN (SELECT ival from constants) ELSE SC.hf1 END AS hf1
 	, CASE WHEN SC.hf2 IS NULL THEN (SELECT ival from constants) ELSE SC.hf2 END AS hf2
 	, CASE WHEN SC.htn IS NULL THEN (SELECT ival from constants) ELSE SC.htn END AS htn
 	, CASE WHEN SC.dm2 IS NULL THEN (SELECT ival from constants) ELSE SC.dm2 END AS dm2
 	, CASE WHEN SC.ckd IS NULL THEN (SELECT ival from constants) ELSE SC.ckd END AS ckd
-	, CASE WHEN SC.died_90d IS NULL THEN (SELECT ival from constants) ELSE SC.died_90d END AS died_90d
+	/*, CASE WHEN SC.died_90d IS NULL THEN (SELECT ival from constants) ELSE SC.died_90d END AS died_90d*/
+	, CASE WHEN SC.died_365d IS NULL THEN (SELECT ival from constants) ELSE SC.died_365d END AS died_365d
 FROM (
 SELECT ADM.ethnicity
 		, PAT.gender
@@ -116,8 +116,11 @@ SELECT ADM.ethnicity
 		, CASE WHEN DGHTN.htn IS NULL THEN 0 ELSE DGHTN.htn END AS htn
 		, CASE WHEN DGDM2.dm2 IS NULL THEN 0 ELSE DGDM2.dm2 END AS dm2
 		, CASE WHEN DGCKD.ckd IS NULL THEN 0 ELSE DGCKD.ckd END AS ckd
-		, CASE WHEN DATE_PART('day', pat.dod - adm.admittime) <= 90 THEN 1
-			ELSE 0 END AS died_90d
+		/*, CASE WHEN DATE_PART('day', pat.dod - ADM.dischtime) <= 90 THEN 1
+			ELSE 0 END AS died_90d*/
+		, CASE WHEN DATE_PART('day', pat.dod - ADM.dischtime) <= 365 THEN 1
+			ELSE 0 END AS died_365d
+		, ADM.hospital_expire_flag
 		, ROW_NUMBER() OVER (PARTITION BY adm.subject_id ORDER BY adm.admittime ASC) AS adm_num
 FROM mimiciii.admissions AS ADM
 	LEFT JOIN mimiciii.patients AS PAT ON PAT.subject_id = ADM.subject_id
@@ -132,4 +135,5 @@ FROM mimiciii.admissions AS ADM
 ) AS SC
 WHERE SC.adm_num = 1	
 	AND SC.age_at_admit >= 18
-	AND (SC.hf1 = 0 AND SC.hf2 = 1 OR SC.hf1 = 0 AND SC.hf2 = 0)
+	AND SC.hospital_expire_flag = 0
+	AND (SC.hf1 = 1 OR SC.hf2 = 1)
