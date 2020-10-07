@@ -4,6 +4,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn import metrics
 from sklearn import svm
 from sklearn.neighbors import DistanceMetric
+import random
 
 class privacy(object):
     
@@ -74,8 +75,7 @@ class privacy(object):
         
         return {'real':nn_real, 'synth':nn_synth, 'prob':nn_prob, 'rand':nn_rand}
     
-    def membership_inference(self, r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type='lr'):
-        
+    def membership_inference_hayes(self, r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type='lr'):
         
         # real auxilliary and synthetic training set
         x_as_trn = np.row_stack((a_trn,s_trn))
@@ -106,4 +106,36 @@ class privacy(object):
         
         return {'prob_rr':p_rr, 'prob_as':p_as, 
                 'auc_as':auc_as, 'auc_rr':auc_rr}
+    
+    def membership_inference_torfi(self, r_trn, r_tst, s, n_sample=100, threshold=1e-3):
         
+        precision = 0
+        recall = 0
+        p = []
+        
+        idx_trn = random.sample(range(len(r_trn)), min(n_sample, len(r_trn)))
+        idx_tst = random.sample(range(len(r_tst)), min(n_sample, len(r_tst)))
+        p = np.zeros(shape=len(idx_trn)+len(idx_tst))
+        y = np.append(np.ones(len(idx_trn)), np.zeros(len(idx_tst)))
+        x = np.row_stack((r_trn[idx_trn,:], r_tst[idx_tst,:]))
+        
+        for i in range(len(x)):
+            for j in range(len(s)):
+                if self.distance(a=r_trn[idx_trn[i],:], b=s[j,:], metric="cosine") < threshold:
+                    p[i] = 1
+                    
+        precision = metrics.precision_score(y_true=y, y_pred=p)
+        recall = metrics.recall_score(y_true=y, y_pred=p)
+        accuracy = metrics.accuracy_score(y_true=y, y_pred=p)
+        
+        return {'precision':precision, 'recall':recall, 'accuracy':accuracy}
+    
+    def membership_inference(self, r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type='lr', mi_type='hayes'):
+        
+        if mi_type == 'hayes':
+            return self.membership_inference_hayes(r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type)
+        
+        if mi_type == 'torfi':
+            return self.membership_inference_torfi(r_trn, r_tst, np.row_stack((s_trn,s_tst)))
+        
+        return None
