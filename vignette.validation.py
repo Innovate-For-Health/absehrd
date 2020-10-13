@@ -56,6 +56,8 @@ def main():
     
     if isfile(file_real) and use_saved_model:
         x = np.loadtxt(file_real, dtype=str, delimiter=',')
+        names = np.loadtxt(file_real, dtype=str, delimiter=',', comments=None, skiprows=0, max_rows=1)
+        names[0] = names[0][2:len(names[0])]
     
     else:
         
