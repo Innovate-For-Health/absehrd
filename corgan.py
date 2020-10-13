@@ -435,17 +435,19 @@ class corgan(object):
         autoencoderModel.eval()
         autoencoderDecoder.eval()
             
-        # Generate a batch of samples
+        # number of patches to generate
         gen_samples = np.zeros((n_gen, feature_size))
         n_batches = int(n_gen / batch_size) + 1
         
         for i in range(n_batches):
            
-            batch_size = min(batch_size, n_gen - i * batch_size)
-            z = torch.randn(batch_size, latent_dim, device=device)
+            batch_size_itr = min(batch_size, n_gen - i * batch_size)
+            z = torch.randn(batch_size_itr, latent_dim, device=device)
             gen_samples_tensor = generatorModel(z)
             gen_samples_decoded = autoencoderDecoder(gen_samples_tensor)
-            gen_samples[i * batch_size:i * batch_size + batch_size, :] = gen_samples_decoded.cpu().data.numpy()
+            
+            idx_max = min(i * batch_size + batch_size, n_gen)
+            gen_samples[i * batch_size:idx_max, :] = gen_samples_decoded.cpu().data.numpy()
             
             # Check to see if there is any nan
             assert (gen_samples[i, :] != gen_samples[i, :]).any() == False
