@@ -42,7 +42,7 @@ def main():
     n_gen = n
     missing_value = '-99999'
     delim = '__'
-    use_saved_model = False
+    use_saved_model = True
     
     # sweeps
     binary_prob = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3]

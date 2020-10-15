@@ -42,7 +42,7 @@ def main():
     cor = corgan()
     pri = privacy()
     
-    # read nhamcs dataset
+    # read mimic dataset
     ftr = pre.read_file(file_csv_real, has_header=True)
     header = ftr['header']
     x = ftr['x']

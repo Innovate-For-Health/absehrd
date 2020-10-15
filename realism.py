@@ -138,7 +138,7 @@ class realism:
                                    model_type=model_type, debug=debug)
     
     def kl_divergence(self, p, q):
-        return np.sum(np.where(p != 0, p * np.log(p / q), 0))
+        return np.sum(np.where(np.logical_and(p != 0, q != 0), p * np.log(p / q), 0))
     
     def validate_feature(self, r_feat, s_feat, var_type
                          , categorical_metric = 'euclidean'
