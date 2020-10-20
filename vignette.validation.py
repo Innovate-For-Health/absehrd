@@ -34,8 +34,10 @@ def generate_unique_strings(n):
 def main():
     
     # files
-    file_real = '../output/demo_raw.csv'
+    file_real = '../output/demo_real.csv'
+    file_synth = '../output/demo_synth.csv'
     file_model = '../output/demo_corgan.pkl'
+    file_dist = '../output/demo_dist.csv'
     
     # parameters
     n = 10000
@@ -123,8 +125,12 @@ def main():
     # distance between all features
     dist_feat = np.zeros(len(m))
     for j in range(len(m)):
-        dist_feat[j] = rea.validate_feature(r_feat=d['x'][:,j], s_feat=f['x'][:,j], var_type=m[j]['type'])
-        
+        dist_feat[j] = rea.validate_feature(r_feat=x[:,j], s_feat=f['x'][:,j], var_type=m[j]['type']
+    
+    # save synthetic data and distance calculations
+    np.savetxt(fname=file_synth, fmt='%s', X=f['x'], delimiter=',', header=','.join(f['header']))
+    np.savetxt(fname=file_dist, fmt='%s', X=np.vstack((names, dist_feat)), delimiter=',')
+    
     print(dist_feat)
         
     
