@@ -24,23 +24,8 @@ class mlp(torch.nn.Module):
 
 class realism:
     
-    def __init__(self, missing_value):
-        self.missing_value=missing_value
-    
-    def validate_univariate(self, r, s, header, discretized=False):
-        
-        pre=preprocessor(missing_value=self.missing_value)
-        
-        if discretized:
-            d_r = {'x':r, 'header':header}
-            d_s = {'x':s, 'header':header}
-        else:
-            m_r = pre.get_metadata(r, header)
-            m_s = pre.get_metadata(s, header)
-    
-            d_r = pre.get_discretized_matrix(r, m_r, header)
-            d_s = pre.get_discretized_matrix(s, m_s, header)
-        
+    def validate_univariate(self, d_r, d_s, header):
+                
         frq_r = np.zeros(shape=d_r['x'].shape[1])
         for j in range(d_r['x'].shape[1]):
             frq_r[j] = np.mean(d_r['x'][:,j])

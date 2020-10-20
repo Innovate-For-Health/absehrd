@@ -7,9 +7,6 @@ from sklearn.linear_model import LogisticRegression
 
 class report(object):
     
-    def __init__(self, missing_value):
-        self.missing_value=missing_value
-    
     def make_report(self, r_trn, r_tst, s_trn, s_tst, col_names, file_pdf, outcome=None,  
                           dist_metric='euclidean', n_epoch=5, model_type='mlp',
                           n_nn_sample=100, penalty='l2', report_type='prediction'):
@@ -28,7 +25,7 @@ class report(object):
             print('\nError: number of columns in r and s must match')
             return False
         
-        rea = realism(self.missing_value)
+        rea = realism()
         pri = privacy()
                 
         # extract outcome for prediction tests
@@ -45,7 +42,7 @@ class report(object):
         x_s_tst = np.delete(s_tst, idx_outcome, axis=1)
         
         # univariate
-        res_uni = rea.validate_univariate(r_tst, s_tst, col_names, discretized=True)
+        res_uni = rea.validate_univariate(r_tst, s_tst, col_names)
         corr_uni = np.corrcoef(x=res_uni['frq_r'], y=res_uni['frq_s'])[0,1]
         
         # nearest neighbors

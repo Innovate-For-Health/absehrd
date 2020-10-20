@@ -5,13 +5,15 @@ Date: August 14, 2020
 """
 
 from realism import realism
+from preprocessor import preprocessor
 import numpy as np
 
 class tester_rea(object):
     
     def test_validate_univariate():
         
-        rea = realism(missing_value='-99999')
+        pre = preprocessor(missing_value='-99999')
+        rea = realism()
         
         n = 1000
         m = 4
@@ -23,7 +25,13 @@ class tester_rea(object):
         s = np.random.randint(low=0, high=2, size=(n,m))
         r = s
         
-        res = rea.validate_univariate(r=r, s=s, header=header)
+        # preprocess
+        m_r = pre.get_metadata(r, header)
+        d_r = pre.get_discretized_matrix(r, m_r, header)
+        m_s = pre.get_metadata(s, header)
+        d_s = pre.get_discretized_matrix(s, m_s, header)
+        
+        res = rea.validate_univariate(r=d_r['x'], s=d_s['x'], header=header)
         
         for j in range(m):
             if res['frq_r'][j] != res['frq_s'][j]:
@@ -33,7 +41,7 @@ class tester_rea(object):
     
     def test_gan_train(debug=False):
         
-        rea = realism(missing_value='-99999')
+        rea = realism()
         
         n = 1000
         m_2 = 3
@@ -76,7 +84,7 @@ class tester_rea(object):
     
     def test_gan_test(debug=False):
         
-        rea = realism(missing_value='-99999')
+        rea = realism()
         
         if debug:
             print()
@@ -125,7 +133,7 @@ class tester_rea(object):
         if debug:
             print()
         
-        rea = realism(missing_value='-99999')
+        rea = realism()
         n = 10000
         
         # categorical

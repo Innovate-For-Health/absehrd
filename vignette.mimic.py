@@ -38,9 +38,9 @@ def main():
     use_saved_model = False
     
     pre = preprocessor(missing_value=missing_value)
-    rep = report(missing_value=missing_value)
+    rep = report()
     cor = corgan()
-    pri = privacy()
+    #pri = privacy()
     
     # read mimic dataset
     ftr = pre.read_file(file_csv_real, has_header=True)

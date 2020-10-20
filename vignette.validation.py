@@ -54,7 +54,7 @@ def main():
     # sehrd objects
     pre = preprocessor(missing_value=missing_value)
     cor = corgan()
-    rea = realism(missing_value=missing_value)
+    rea = realism()
     
     if isfile(file_real) and use_saved_model:
         x = np.loadtxt(file_real, dtype=str, delimiter=',')

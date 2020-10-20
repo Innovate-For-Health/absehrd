@@ -36,7 +36,7 @@ def main():
     n_epoch_pretrain = 150
     
     pre = preprocessor(missing_value=missing_value)
-    rep = report(missing_value=missing_value)
+    rep = report()
     cor = corgan()
     pri = privacy()
     
