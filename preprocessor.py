@@ -1,7 +1,7 @@
 from re import search
 import numpy as np
-import pandas as pd
 import feather
+from os.path import isfile
 
 class preprocessor:
     
@@ -41,10 +41,16 @@ class preprocessor:
         arr = None
         header = []
         
+        if(not isfile(file_name)):
+            return None
+        
         if(self.get_file_type(file_name) == 'npy'):
             if debug:
                 print('Reading npy file ', file_name, '...')
             arr = np.load(file_name)
+            if has_header:
+                header = arr[0,:]
+                arr = arr[1:len(arr),:]
         
         elif(self.get_file_type(file_name) == 'feather'):
             if debug:
@@ -56,16 +62,20 @@ class preprocessor:
         
         elif(self.get_file_type(file_name) == 'csv' or self.get_file_type(file_name) == 'tsv'):
             if debug:
-                print('Reading csv file ', file_name, '...')
+                print('Reading ' + self.get_file_type(file_name) + ' file ', file_name, '...')
             
+            arr = []
             if has_header:
-                df = pd.read_csv(file_name, header=0, keep_default_na=False)
-                header = list(df.columns)
+                
+                delim = ','
+                if self.get_file_type(file_name) == 'tsv':
+                    delim = '\t'
+                arr = np.loadtxt(file_name, dtype=str, delimiter=delim)
+                header = np.loadtxt(file_name, dtype=str, delimiter=delim, 
+                                    comments=None, skiprows=0, max_rows=1)
                 header[0] = header[0].replace('# ','')
             else:
-                df = pd.read_csv(file_name, header=None, keep_default_na=False)
-            arr = df.to_numpy()
-
+                arr = np.loadtxt(file_name, dtype=str, delimiter=delim)
                 
         else:
             if debug:
