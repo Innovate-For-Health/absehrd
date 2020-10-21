@@ -9,6 +9,9 @@ from torch.utils.data import DataLoader
 # for cpu count
 import multiprocessing
 
+# custom
+from generator_framework import GeneratorFramework
+
 class Dataset:
     def __init__(self, data, transform=None):
         # Transform
@@ -108,7 +111,7 @@ class Discriminator(nn.Module):
         return output
 
 
-class corgan(object):
+class corgan(GeneratorFramework):
     
     def generator_loss(self, y_fake, y_true, epsilon = 1e-12):
         return -0.5 * torch.mean(torch.log(y_fake + epsilon))
