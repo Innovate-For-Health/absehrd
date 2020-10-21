@@ -1,42 +1,41 @@
 import argparse
 import sys
 import multiprocessing
+import numpy as np
 from os.path import isfile
 
 # sehrd packages
 from preprocessor import preprocessor
 from corgan import corgan
-from report import report
+from realism import realism
+from privacy import privacy
 
 # cli ------------------------
 
 # valid values (default is always first)
 choices_train_type = ['corgan']
-choices_report_type = ['prediction','description']
+choices_report_type = ['feature_frequency','feature_effect',
+                    'gan_train_test','nearest_neighbors',
+                    'membership_inference']
 
 # parsers
 parser = argparse.ArgumentParser()
-
-# global parameters
-
-
-# subparsers
 subparsers = parser.add_subparsers(help='task to perform', 
                                    dest='task',
                                    required=True)
 parser_t = subparsers.add_parser('train', 
                     help='train a synthetic data generator')
 parser_g = subparsers.add_parser('generate', 
-                    help='generate synthetic data samples')
-parser_r = subparsers.add_parser('report', 
-                    help='report on synthetic data sample')
+                    help='generate synthetic dataset')
+parser_r = subparsers.add_parser('validate', 
+                    help='validate synthetic dataset')
 
 # subparser: train
 parser_t.add_argument('--file_data', 
                     help='path to file containing real data', 
                     type=str,
                     required=True)
-parser_t.add_argument('--outprefix_model', 
+parser_t.add_argument('--outprefix_train', 
                     help='file prefix to model pkl dump', 
                     type=str, 
                     required=True)
@@ -80,7 +79,7 @@ parser_g.add_argument('--file_model',
                     help='path to file containing trained generator', 
                     type=str,
                     required=True)
-parser_g.add_argument('-o', '--outprefix_synth', 
+parser_g.add_argument('-o', '--outprefix_generate', 
                     help='file prefix to synthetic data CSV', 
                     type=str, 
                     required=True)
@@ -101,18 +100,37 @@ parser_g.add_argument('--n_cpu_generate',
 
 # subparser: report
 parser_r.add_argument('--outprefix_report', 
-                    help='file prefix to report PDF', 
+                    metavar='OUTPREFIX',
+                    help='file prefix for validation results', 
                     type=str, 
                     required=True)
-parser_r.add_argument('--report_type', 
-                    help='type of synthetic data report to generate', 
-                    choices=choices_report_type,
-                    default=choices_report_type[0],
+parser_r.add_argument('--feature_frequency', 
+                    help='compare real and synthetic feature frequency', 
+                    action='store_true',
                     required=False)
-parser_r.add_argument('--outcome',
-                    help='column name of feature to be used as prediction target',
+parser_r.add_argument('--effect_size', 
+                    metavar='OUTCOME',
+                    help='compare real and synthetic feature effect sizes', 
                     type=str,
                     default='outcome',
+                    required=False)
+parser_r.add_argument('--gan_train_test', 
+                    help='compare real and synthetic feature effect sizes', 
+                    type=str,
+                    metavar='OUTCOME',
+                    default='outcome',
+                    required=False)
+parser_r.add_argument('--nearest_neighbors', 
+                    help='compare nearest neighbor distances', 
+                    action='store_true',
+                    required=False)
+parser_r.add_argument('--membership_inference', 
+                    help='calculate risk of membership inference', 
+                    action='store_true',
+                    required=False)
+parser_r.add_argument('--plot', 
+                    help='plot applicable results', 
+                    action='store_true',
                     required=False)
 
 # check user input -------------
@@ -184,22 +202,15 @@ if args.task == 'generate':
               str(args.n_cpu_generate) + '\' (choose integer in range [1,' + 
               str(max_cpu) + '])')
         sys.exit(0)
-        
-
-    
-# check for required parameters for each scenario
-"""
-    
+            
 # scenarios --------------
 
-# initilize
-# TODO: need to move these initializations to appropriate blocks
-#       and deal with missing value and report...
-pre = preprocessor(missing_value=args_t.missing_value)
-rep = report(missing_value=args_t.missing_value)
-cor = corgan()
-
-if args_m.task == 'train':
+if args.task == 'train':
+    
+    # instantiate
+    pre = preprocessor(missing_value=args.missing_value)
+    cor = corgan()
+    outfile = args.outprefix_train + '.pkl'
         
     # load real data
     ftr = pre.read_file(args.file, has_header=True)
@@ -212,15 +223,40 @@ if args_m.task == 'train':
     
     # split data
     r = d['x']
-    n_subset_r = round(len(r) * trn_frac)
+    n_subset_r = round(len(r) * args.frac_train)
     idx_trn = np.random.choice(len(r), n_subset_r, replace=False)
     idx_tst = np.setdiff1d(range(len(r)), idx_trn)
     r_trn = r[idx_trn,:]
     r_tst = r[idx_tst,:]
+    
+    # train and save model
+    model = cor.train(x=r_trn, n_cpu=args.n_cpu_train, debug=False, 
+                      n_epochs=args.n_epoch, 
+                      n_epochs_pretrain=args.n_epoch_pre)
+    model['m'] = m
+    model['header'] = d['header']
+    save_obj(model, outfile)
+    
+elif args.task == 'generate':
+    
+    cor = corgan()
+    outfile = args.outprefix_generate + '.csv'
+    
+    model = load_obj(args.file_model)
+    s = cor.generate(model, n_gen=args.generate_size)
+    
+    f = pre.restore_matrix(s=s, m=model['m'], header=model['header'])
+    np.savetxt(fname=outfile, fmt='%s', X=f['x'], delimiter=',', 
+               header=','.join(f['header']))
+    
+elif args.task == 'validate':
 
-# train
+    rea = realism()
+    pri = privacy()
+    outfile = args.outprefix_report + '.pkl'
+    outplot = args.outprefix_report + '.pdf'
+     
+        
+        
 
-# generate
 
-# report
-"""
