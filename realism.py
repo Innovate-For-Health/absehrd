@@ -4,6 +4,7 @@ import torch
 from sklearn import metrics
 from sklearn.linear_model import LogisticRegression
 from scipy.stats import norm
+import matplotlib.pyplot as plt
 
 class mlp(torch.nn.Module):
         def __init__(self, input_size, hidden_size):
@@ -122,6 +123,46 @@ class realism:
                                    do_gan_train=False, n_epoch=n_epoch, 
                                    model_type=model_type, debug=debug)
     
+    def gan_train_test(self, r_trn, r_tst, s, outcome, n_epoch=5, 
+                 model_type='mlp'):
+        
+        # split synthetic dataset
+        frac_train = len(r_trn) / (len(r_trn) + len(r_tst))
+        n_subset_s = round(len(s) * frac_train)
+        idx_trn = np.random.choice(len(s), n_subset_s, replace=False)
+        idx_tst = np.setdiff1d(range(len(s)), idx_trn)
+        s_trn = s[idx_trn,:]
+        s_tst = s[idx_tst,:]
+
+        # extract outcome for prediction tests
+        idx_outcome = np.where(col_names == outcome)
+        y_r_trn = np.reshape(np.round(np.reshape(r_trn[:,idx_outcome], newshape=(len(r_trn),1))).astype(int), len(r_trn))
+        y_r_tst = np.reshape(np.round(np.reshape(r_tst[:,idx_outcome], newshape=(len(r_tst),1))).astype(int), len(r_tst))
+        y_s_trn = np.reshape(np.round(np.reshape(s_trn[:,idx_outcome], newshape=(len(s_trn),1))).astype(int), len(s_trn))
+        y_s_tst = np.reshape(np.round(np.reshape(s_tst[:,idx_outcome], newshape=(len(s_tst),1))).astype(int), len(s_tst))
+        
+        # extract features for prediction tests
+        x_r_trn = np.delete(r_trn, idx_outcome, axis=1)
+        x_r_tst = np.delete(r_tst, idx_outcome, axis=1)
+        x_s_trn = np.delete(s_trn, idx_outcome, axis=1)
+        x_s_tst = np.delete(s_tst, idx_outcome, axis=1)
+
+        # conduct res gan-train, gan-test comparisons
+        res_gan_real = rea.gan_train(x_synth=x_r_trn, y_synth=y_r_trn, 
+                                         x_real=x_r_tst, y_real=y_r_tst, 
+                                         n_epoch=n_epoch, 
+                                         model_type=model_type)
+        res_gan_train = rea.gan_train(x_synth=x_s_trn, y_synth=y_s_trn, 
+                                      x_real=x_r_tst, y_real=y_r_tst, 
+                                      n_epoch=n_epoch, 
+                                      model_type=model_type)
+        res_gan_test = rea.gan_test(x_synth=x_s_tst, y_synth=y_s_tst, 
+                                    x_real=x_r_tst, y_real=y_r_tst, 
+                                    n_epoch=n_epoch, 
+                                    model_type=model_type)
+    
+        return {'gan_real':res_gan_real, 'gan_train':res_gan_train, 'gan_test':res_gan_test}
+    
     def kl_divergence(self, p, q):
         return np.sum(np.where(np.logical_and(p != 0, q != 0), p * np.log(p / q), 0))
     
@@ -158,5 +199,96 @@ class realism:
         return dist
         
         
+    def plot(self, res, analysis, file_pdf):
+        
+        fontsize = 6
+        color = 'gray'
+        x_buffer = 0.1
+        y_buffer = 0.075
+        m_buffer = 1.5
+        n_decimal = 2
+        
+        f = plt.figure()
+        
+        if analysis == 'feature_frequency':
+        
+            plt.plot([0,1],[0,1], color="gray", linestyle='--')
+            plt.scatter(res['frq_r'], res['frq_s'], label='Frequency')
+            plt.set_xlabel('Real', fontsize=fontsize)
+            plt.set_ylabel('Synthetic', fontsize=fontsize)
+            plt.set_xlim([0, 1])
+            plt.set_ylim([0, 1])
+            plt.tick_params(axis='x', labelsize=fontsize)
+            plt.tick_params(axis='y', labelsize=fontsize)
+            plt.legend(fontsize=fontsize)
+           
+        elif analysis == 'feature_effect':
+            
+            plt.plot([0,1],[0,1], color="gray", linestyle='--')
+            plt.scatter(res['frq_r'], res['frq_s'], label='Importance')
+            plt.set_xlabel('Real', fontsize=fontsize)
+            plt.set_ylabel('Synthetic', fontsize=fontsize)
+            plt.set_xlim([0, 1])
+            plt.set_ylim([0, 1])
+            plt.tick_params(axis='x', labelsize=fontsize)
+            plt.tick_params(axis='y', labelsize=fontsize)
+            plt.legend(fontsize=fontsize)
+            
+        elif analysis == 'gan_train_test':
+ 
+            plt.plot(res['roc'][0], res['roc'][1], label="Real")
+            plt.plot(res['roc'][0], res['roc'][1], label="GAN-train")
+            plt.plot(res['roc'][0], res['roc'][1], label="GAN-test")
+            plt.plot([0,1],[0,1], color="gray", linestyle='--')
+            plt.tick_params(axis='x', labelsize=fontsize)
+            plt.tick_params(axis='y', labelsize=fontsize)
+            plt.legend(fontsize=fontsize)
+            plt.set_xlabel('False positive rate', fontsize=fontsize)
+            plt.set_ylabel('True positive rate', fontsize=fontsize)
+
+        plt.show()
+        f.savefig(file_pdf, bbox_inches='tight')    
+        return True
     
+    def summarize(self, res, analysis, n_decimal=2):
+        
+        msg = ''
+         
+        if analysis == 'feature_frequency':
+            corr = np.corrcoef(x=res['frq_r'], y=res['frq_s'])[0,1]
+            msg = 'Frequency correlation: ' + str(np.round(corr, n_decimal))
+        
+        elif analysis == 'feature_effect':
+            msg = 'Importance correlation: ' + str(np.round(corr, n_decimal))
+        
+        elif analysis == 'gan_train_test':
+            msg = 'Realism assessment: ' +
+                    '\n  > Real AUC: ' + str(np.round(res['gan_real']['auc'], n_decimal)) +
+                    '\n  > GAN-train AUC: ' + str(np.round(res['gan_train']['auc'], n_decimal)) +
+                    '\n  > GAN-test AUC: ' + str(np.round(res['gan_test']['auc'], n_decimal))
+        else 
+            msg = 'Warning: summary message for analysis \'' + analysis + 
+            '\' not currently implemented in realism::summarize().' 
+        
+        return msg
     
+    def save_obj(self, obj, file_name):
+        with open(file_name, 'wb') as f:
+            pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+    def load_obj(self, file_name):
+        with open(file_name, 'rb') as f:
+            return pickle.load(f)
+        
+    def feature_frequency(self, file_r_trn, file_r_tst, file_s):
+        
+        # r_trn = 
+        # r_tst = 
+        # s = 
+        
+        # preprocess
+        
+        # compare r_trn and s
+        # compare r_tst and s
+        
+        # combin results

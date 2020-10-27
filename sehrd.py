@@ -3,6 +3,7 @@ import sys
 import multiprocessing
 import numpy as np
 from os.path import isfile
+import datetime as dt
 
 # sehrd packages
 from preprocessor import preprocessor
@@ -14,9 +15,12 @@ from privacy import privacy
 
 # valid values (default is always first)
 choices_train_type = ['corgan']
-choices_report_type = ['feature_frequency','feature_effect',
-                    'gan_train_test','nearest_neighbors',
+choices_analysis_realism = ['feature_frequency',
+                    'feature_effect',
+                    'gan_train_test']
+choices_analysis_privacy = ['nearest_neighbors',
                     'membership_inference']
+choices_output = ['summary', 'file', 'plot', 'all']
 
 # parsers
 parser = argparse.ArgumentParser()
@@ -27,8 +31,10 @@ parser_t = subparsers.add_parser('train',
                     help='train a synthetic data generator')
 parser_g = subparsers.add_parser('generate', 
                     help='generate synthetic dataset')
-parser_r = subparsers.add_parser('validate', 
-                    help='validate synthetic dataset')
+parser_r = subparsers.add_parser('realism', 
+                    help='assess realism of synthetic dataset')
+parser_p = subparsers.add_parser('privacy', 
+                    help='assess privacy risk of synthetic dataset')
 
 # subparser: train
 parser_t.add_argument('--file_data', 
@@ -98,11 +104,23 @@ parser_g.add_argument('--n_cpu_generate',
                     default=1,
                     required=False)
 
-# subparser: report
-parser_r.add_argument('--outprefix_report', 
+# subparser: realism
+parser_r.add_argument('--outprefix_realism', 
                     metavar='OUTPREFIX',
-                    help='file prefix for validation results', 
+                    help='file prefix for realism assessments', 
                     type=str, 
+                    required=True)
+parser_r.add_argument('--file_realism_real_train', 
+                    help='file containing real data used to train the synthetic data generator', 
+                    type=str,
+                    required=True)
+parser_r.add_argument('--file_realism_real_test', 
+                    help='file containing real data not used to train the synthetic data generator', 
+                    type=str,
+                    required=True)
+parser_r.add_argument('--file_realism_synth', 
+                    help='file containing synthetic data', 
+                    type=str,
                     required=True)
 parser_r.add_argument('--feature_frequency', 
                     help='compare real and synthetic feature frequency', 
@@ -120,17 +138,47 @@ parser_r.add_argument('--gan_train_test',
                     metavar='OUTCOME',
                     default='outcome',
                     required=False)
-parser_r.add_argument('--nearest_neighbors', 
+parser_r.add_argument('--output_realism', 
+                    help='type of output for realism analysis', 
+                    choices=choices_output,
+                    default=choices_output[0],
+                    required=False)
+
+# subparser: privacy
+parser_p.add_argument('--outprefix_privacy', 
+                    metavar='OUTPREFIX',
+                    help='file prefix for realism assessments', 
+                    type=str, 
+                    required=True)
+parser_r.add_argument('--file_realism_real_train', 
+                    help='file containing real data used to train the synthetic data generator', 
+                    type=str,
+                    required=True)
+parser_r.add_argument('--file_realism_real_test', 
+                    help='file containing real data not used to train the synthetic data generator', 
+                    type=str,
+                    required=True)
+parser_r.add_argument('--file_realism_synth', 
+                    help='file containing synthetic data', 
+                    type=str,
+                    required=True)
+parser_p.add_argument('--analysis_privacy',
+                    help='type of privacy validation analysis',
+                    choices=choices_analysis_privacy,
+                    default=choices_analysis_privacy[0],
+                    required=False)
+parser_p.add_argument('--nearest_neighbors', 
                     help='compare nearest neighbor distances', 
                     action='store_true',
                     required=False)
-parser_r.add_argument('--membership_inference', 
+parser_p.add_argument('--membership_inference', 
                     help='calculate risk of membership inference', 
                     action='store_true',
                     required=False)
-parser_r.add_argument('--plot', 
-                    help='plot applicable results', 
-                    action='store_true',
+parser_p.add_argument('--output_privacy', 
+                    help='type of output for privacy analysis', 
+                    choices=choices_output,
+                    default=choices_output[0],
                     required=False)
 
 # check user input -------------
@@ -142,8 +190,6 @@ if len(sys.argv)==1:
     
 # get command line arguments
 args = parser.parse_args()
-print(args)
-
 
 # check arguments for 'train' task        
 if args.task == 'train':
@@ -202,8 +248,23 @@ if args.task == 'generate':
               str(args.n_cpu_generate) + '\' (choose integer in range [1,' + 
               str(max_cpu) + '])')
         sys.exit(0)
-            
-# scenarios --------------
+  
+# initial message -----------------
+
+# TODO: porint initial message to user
+#   - start time
+#   - command 
+tic = dt.datetime.now()
+print()
+print('Command ')
+print(args)
+print('Started at ' + str(tic.replace(microsecond=0)))
+
+
+          
+# tasks --------------
+
+outfile = 'none'
 
 if args.task == 'train':
     
@@ -235,28 +296,107 @@ if args.task == 'train':
                       n_epochs_pretrain=args.n_epoch_pre)
     model['m'] = m
     model['header'] = d['header']
-    save_obj(model, outfile)
+    cor.save_obj(model, outfile)
     
 elif args.task == 'generate':
     
     cor = corgan()
     outfile = args.outprefix_generate + '.csv'
     
-    model = load_obj(args.file_model)
+    model = cor.load_obj(args.file_model)
     s = cor.generate(model, n_gen=args.generate_size)
     
     f = pre.restore_matrix(s=s, m=model['m'], header=model['header'])
     np.savetxt(fname=outfile, fmt='%s', X=f['x'], delimiter=',', 
                header=','.join(f['header']))
     
-elif args.task == 'validate':
+elif args.task == 'realism':
 
     rea = realism()
+        
+    # analysis
+    if args.analysis_realism == 'feature_frequency':
+        """
+        res = rea.validate_univariate(d_r, d_s, header)
+        
+        res = rea.feature_frequency(file_r_trn = args.file_realism_train, 
+                                    file_r_tst = args.file_realism_test, 
+                                    file_s = args.file_realism_synth)
+        """
+        # TODO: figure out how to write the feature frequency 
+        res = None
+        
+    elif args.analysis_realism == 'feature_effect':
+        res = None
+        
+    elif args.analysis_realism == 'gan_train_test':
+        res = rea.gan_train_test(r_trn, r_tst, s, args.outcome)
+        
+    else:
+        print('Error: do not recognize analysis_realism option ' 
+              + args.analysis_realism)
+        sys.exit(0)
+        
+    # output
+    if args.output_realism == 'file':
+        outfile = args.outprefix_realism + '_' + args.analysis_realism + '.pkl'
+        rea.save_obj(res, file_name=outfile)
+        
+    elif args.output_realism == 'plot':
+        outfile = args.outprefix_realism + '_' + args.analysis_realism+ '.pdf'
+        pri.plot(res, analysis=args.output_realism, file_pdf=outfile)
+    
+    elif args.output_realism == 'summary':
+        msg = pri.summarize(res, analysis=args.output_realism)
+        print(msg)
+        
+    else:
+        print('Error: do not recognize output_realism option ' 
+              + args.output_realism)
+        sys.exit(0)
+        
+elif args.task == 'privacy':
+
     pri = privacy()
-    outfile = args.outprefix_report + '.pkl'
-    outplot = args.outprefix_report + '.pdf'
-     
+
+    # analysis
+    if args.analysis_privacy == 'nearest_neighbors':
+        res = None
+    elif args.analysis_privacy == 'membership_inference':
+        res = None
+    else:
+        print('Error: do not recognize analysis_privacy option ' 
+              + args.analysis_privacy)
+        sys.exit(0)
+    
+    # output
+    if args.output_privacy == 'file':
+        outfile = args.outprefix_privacy + '_' + args.analysis_privacy + '.pkl'
+        rea.save_obj(res, file_name=outfile)
         
+    elif args.output_privacy == 'plot':
+        # TODO: write plot_privacy function
+        outfile = args.outprefix_privacy + '_' + args.analysis_privacy+ '.pdf'
+        pri.plot(res, analysis=args.output_privacy, file_pdf=outfile)
+    
+    elif args.output_privacy == 'summary':
+        #TODO: write summarize_privacy function
+        msg = pri.summarize(res, analysis=args.output_privacy)
+        print(msg)
         
+    else:
+        print('Error: do not recognize output_privacy option ' 
+              + args.output_privacy)
+        sys.exit(0)
+        
+# final message -----------------
+
+toc = dt.datetime.now()
+print()
+print('Command ')
+print(args)
+print('Completed at ' + str(toc.replace(microsecond=0)))
+print('Runtime was ' + str(toc - tic))
+print('Output file: ' + outfile)
 
 

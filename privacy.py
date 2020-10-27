@@ -139,3 +139,60 @@ class privacy(object):
             return self.membership_inference_torfi(r_trn, r_tst, np.row_stack((s_trn,s_tst)))
         
         return None
+    
+    def plot(self, res, analysis, file_pdf):
+        
+        fontsize = 6
+        
+        f = plt.figure()
+        
+        if analysis == 'nearest_neighbors':
+        
+            plt.hist((res['real'], res['synth'], 
+                      res['prob'], res['rand']),
+                     bins=30, 
+                     label = ['Real-real','Real-synthetic','Real-probabilistic','Real-random'])
+            plt.set_xlabel(dist_metric.capitalize()+' distance', fontsize=fontsize)
+            plt.set_ylabel('Number of samples', fontsize=fontsize)
+            plt.tick_params(axis='x', labelsize=fontsize)
+            plt.tick_params(axis='y', labelsize=fontsize)
+            plt.legend(fontsize=fontsize)
+           
+        elif analysis == 'membership_inference':
+            
+            # TODO: figure out what to plot for mem inf
+            placeholder = None
+            
+        else:
+            msg = 'Warning: plot for analysis \'' + analysis + 
+            '\' not currently implemented in privacy::plot().' 
+ 
+           
+        plt.show()
+        f.savefig(file_pdf, bbox_inches='tight')    
+        return True
+    
+    def summarize(self, res, analysis, n_decimal=2):
+        
+        msg = ''
+        n_decimal = 2
+         
+        if analysis == 'nearest_neighbors':
+            msg = 'Mean nearest neighbor distance: ' +
+                    '  > Real-real: ' +
+                    str(np.round(np.mean(res['real']),n_decimal)) +
+                    '  > Real-synthetic: ' +
+                    str(np.round(np.mean(res['synth']),n_decimal)) +
+                    '  > Real-probabilistic: ' +
+                    str(np.round(np.mean(res['prob']),n_decimal)) +
+                    '  > Real-random: ' +
+                    str(np.round(np.mean(res['rand']),n_decimal))
+        
+        elif analysis == 'membership_inference':
+            msg = 'AUC for auxiliary-synthetic: ' + res['auc_as'] +
+                'AUC for real train-test: ' + res['auc_rr']
+        else 
+            msg = 'Warning: summary message for analysis \'' + analysis + 
+            '\' not currently implemented in privacy::summarize().' 
+        
+        return msg
