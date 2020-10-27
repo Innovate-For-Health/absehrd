@@ -11,7 +11,6 @@ investigate_onehot.py
 medgan_orig.py
 test_ckpts/
 utilities.py
-validation.py
 vignette.sehrd.py
 vignette.toy.py
 2020-11-02_bids_sehrd.R

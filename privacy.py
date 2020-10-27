@@ -6,7 +6,7 @@ from sklearn import svm
 from sklearn.neighbors import DistanceMetric
 import random
 
-class privacy(object):
+class privacy(Validator):
     
     """
     def nearest_neighbors(x, y=None, metric='euclidean'):
@@ -166,8 +166,7 @@ class privacy(object):
         else:
             msg = 'Warning: plot for analysis \'' + analysis + 
             '\' not currently implemented in privacy::plot().' 
- 
-           
+
         plt.show()
         f.savefig(file_pdf, bbox_inches='tight')    
         return True

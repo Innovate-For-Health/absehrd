@@ -23,7 +23,7 @@ class mlp(torch.nn.Module):
             output = self.sigmoid(output)
             return output
 
-class realism:
+class realism(Validator):
     
     def validate_univariate(self, d_r, d_s, header):
                 
@@ -271,15 +271,7 @@ class realism:
             '\' not currently implemented in realism::summarize().' 
         
         return msg
-    
-    def save_obj(self, obj, file_name):
-        with open(file_name, 'wb') as f:
-            pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
-
-    def load_obj(self, file_name):
-        with open(file_name, 'rb') as f:
-            return pickle.load(f)
-        
+            
     def feature_frequency(self, file_r_trn, file_r_tst, file_s):
         
         # r_trn = 
