@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 import multiprocessing
 
 # custom
-from generator_framework import GeneratorFramework
+from synthesizer import Synthesizer
 
 class Dataset:
     def __init__(self, data, transform=None):
