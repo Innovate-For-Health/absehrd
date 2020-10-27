@@ -111,7 +111,7 @@ class Discriminator(nn.Module):
         return output
 
 
-class corgan(GeneratorFramework):
+class corgan(Synthesizer):
     
     def generator_loss(self, y_fake, y_true, epsilon = 1e-12):
         return -0.5 * torch.mean(torch.log(y_fake + epsilon))
