@@ -373,7 +373,8 @@ class corgan(Synthesizer):
             parameter_dict = {'latent_dim':latent_dim, 
                                   'feature_size':x.shape[1],
                                   'batch_size':batch_size,
-                                  'n_cpu':n_cpu}
+                                  'n_cpu':n_cpu,
+                                  'minibatch_averaging':minibatch_averaging}
         
             if (epoch + 1) % epoch_save_model_freq == 0 or (epoch + 1) == n_epochs:
                 # Refer to https://pytorch.org/tutorials/beginner/saving_loading_models.html
