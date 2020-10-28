@@ -1,10 +1,10 @@
 import numpy as np
-from preprocessor import preprocessor
 import torch
 from sklearn import metrics
 from sklearn.linear_model import LogisticRegression
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+from validator import Validator
 
 class mlp(torch.nn.Module):
         def __init__(self, input_size, hidden_size):
@@ -123,7 +123,7 @@ class realism(Validator):
                                    do_gan_train=False, n_epoch=n_epoch, 
                                    model_type=model_type, debug=debug)
     
-    def gan_train_test(self, r_trn, r_tst, s, outcome, n_epoch=5, 
+    def gan_train_test(self, r_trn, r_tst, s, col_names, outcome, n_epoch=5, 
                  model_type='mlp'):
         
         # split synthetic dataset
@@ -148,15 +148,15 @@ class realism(Validator):
         x_s_tst = np.delete(s_tst, idx_outcome, axis=1)
 
         # conduct res gan-train, gan-test comparisons
-        res_gan_real = rea.gan_train(x_synth=x_r_trn, y_synth=y_r_trn, 
+        res_gan_real = self.gan_train(x_synth=x_r_trn, y_synth=y_r_trn, 
                                          x_real=x_r_tst, y_real=y_r_tst, 
                                          n_epoch=n_epoch, 
                                          model_type=model_type)
-        res_gan_train = rea.gan_train(x_synth=x_s_trn, y_synth=y_s_trn, 
+        res_gan_train = self.gan_train(x_synth=x_s_trn, y_synth=y_s_trn, 
                                       x_real=x_r_tst, y_real=y_r_tst, 
                                       n_epoch=n_epoch, 
                                       model_type=model_type)
-        res_gan_test = rea.gan_test(x_synth=x_s_tst, y_synth=y_s_tst, 
+        res_gan_test = self.gan_test(x_synth=x_s_tst, y_synth=y_s_tst, 
                                     x_real=x_r_tst, y_real=y_r_tst, 
                                     n_epoch=n_epoch, 
                                     model_type=model_type)
@@ -202,11 +202,6 @@ class realism(Validator):
     def plot(self, res, analysis, file_pdf):
         
         fontsize = 6
-        color = 'gray'
-        x_buffer = 0.1
-        y_buffer = 0.075
-        m_buffer = 1.5
-        n_decimal = 2
         
         f = plt.figure()
         
@@ -262,17 +257,20 @@ class realism(Validator):
             msg = 'Importance correlation: ' + str(np.round(corr, n_decimal))
         
         elif analysis == 'gan_train_test':
-            msg = 'Realism assessment: ' +
-                    '\n  > Real AUC: ' + str(np.round(res['gan_real']['auc'], n_decimal)) +
-                    '\n  > GAN-train AUC: ' + str(np.round(res['gan_train']['auc'], n_decimal)) +
-                    '\n  > GAN-test AUC: ' + str(np.round(res['gan_test']['auc'], n_decimal))
-        else 
-            msg = 'Warning: summary message for analysis \'' + analysis + 
+            msg = 'Realism assessment: ' + \
+                    '\n  > Real AUC: ' + \
+                    str(np.round(res['gan_real']['auc'], n_decimal)) + \
+                    '\n  > GAN-train AUC: ' + \
+                    str(np.round(res['gan_train']['auc'], n_decimal)) + \
+                    '\n  > GAN-test AUC: ' + \
+                    str(np.round(res['gan_test']['auc'], n_decimal))
+        else:
+            msg = 'Warning: summary message for analysis \'' + analysis + \
             '\' not currently implemented in realism::summarize().' 
         
         return msg
             
-    def feature_frequency(self, file_r_trn, file_r_tst, file_s):
+    #def feature_frequency(self, file_r_trn, file_r_tst, file_s):
         
         # r_trn = 
         # r_tst = 
