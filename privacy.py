@@ -1,10 +1,13 @@
 import numpy as np
-import math
-from sklearn.linear_model import LogisticRegression
 from sklearn import metrics
-from sklearn import svm
 from sklearn.neighbors import DistanceMetric
 import random
+import matplotlib.pyplot as plt
+
+# sehrd modules
+from validator import Validator
+from corgan import corgan
+from corgan import Discriminator
 
 class privacy(Validator):
     
@@ -16,6 +19,15 @@ class privacy(Validator):
         
         return distances[:,1]
     """
+    
+    def scale(self, x, invert=False):
+        
+        s =  (x - np.min(x)) / (np.max(x) - np.min(x))
+        
+        if invert:
+            return 1 - s
+        
+        return s
     
     def distance(self, a, b, metric='euclidean'):
         
@@ -73,70 +85,64 @@ class privacy(Validator):
         x_rand = np.random.randint(low=0, high=2, size=x_real.shape)
         nn_rand = self.nearest_neighbors(a=x_real, b=x_rand, metric=metric)
         
-        return {'real':nn_real, 'synth':nn_synth, 'prob':nn_prob, 'rand':nn_rand}
+        return {'real':nn_real, 'synth':nn_synth, 'prob':nn_prob, 'rand':nn_rand, 'metric':metric}
     
-    def membership_inference_hayes(self, r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type='lr'):
+    def membership_inference_hayes(self, r_trn, r_tst, s, n_cpu):
         
-        # real auxilliary and synthetic training set
-        x_as_trn = np.row_stack((a_trn,s_trn))
-        y_as_trn = np.append(np.zeros(len(a_trn)), np.ones(len(s_trn)))
+        cor = corgan()
         
-        # real auxilliary and synthetic test set
-        x_as_tst = np.row_stack((a_tst,s_tst))
-        y_as_tst = np.append(np.zeros(len(a_tst)), np.ones(len(s_tst)))
+        # evaluation set
+        x = np.row_stack((r_tst,r_trn))
+        y = np.append(np.zeros(len(r_tst)), np.ones(len(r_trn)))
         
-        # real dataset (r_trn used to train the generator, r_tst held out)
-        x_rr_tst = np.row_stack((r_trn,r_tst))
-        y_rr_tst = np.append(np.zeros(len(r_trn)), np.ones(len(r_tst)))
+        # train shadow GAN
+        gan_shadow = cor.train(x=s)
         
-        if model_type == 'lr':
-            clf = LogisticRegression(max_iter=1000, solver='liblinear', penalty='l1')
-        elif model_type == 'svm':
-            clf = svm.SVC(kernel='rbf', gamma='scale', probability=True)
-        else:
-            print('Error: ', model_type, ' is not recognized.')
-            return None
+        # load shadow discriminator
+        minibatch_averaging = gan_shadow['parameter_dict']['minibatch_averaging']
+        feature_size = gan_shadow['parameter_dict']['feature_size']
+        d_shadow = Discriminator(minibatch_averaging=minibatch_averaging, 
+                                 feature_size=feature_size)
+        d_shadow.load_state_dict(gan_shadow['Discriminator_state_dict'])
+        d_shadow.eval()
         
-        model = clf.fit(X=x_as_trn, y=y_as_trn)
-        p_as = model.predict_proba(x_as_tst)[:,1]
-        p_rr = model.predict_proba(x_rr_tst)[:,1]
+        # calculate probabilities from shadow discriminator
+        prob = d_shadow(x)
         
-        auc_as = metrics.roc_auc_score(y_true=y_as_tst, y_score=p_as)
-        auc_rr = metrics.roc_auc_score(y_true=y_rr_tst, y_score=p_rr)
+        roc = metrics.roc_curve(y_true=y, y_score=prob)
+        auc = metrics.roc_auc_score(y_true=y, y_score=prob)
         
-        return {'prob_rr':p_rr, 'prob_as':p_as, 
-                'auc_as':auc_as, 'auc_rr':auc_rr}
+        return {'prob': prob, 'roc':roc, 'auc':auc}
     
     def membership_inference_torfi(self, r_trn, r_tst, s, n_sample=100, threshold=1e-3):
         
-        precision = 0
-        recall = 0
-        p = []
-        
         idx_trn = random.sample(range(len(r_trn)), min(n_sample, len(r_trn)))
         idx_tst = random.sample(range(len(r_tst)), min(n_sample, len(r_tst)))
-        p = np.zeros(shape=len(idx_trn)+len(idx_tst))
+        d = np.zeros(shape=len(idx_trn)+len(idx_tst))
         y = np.append(np.ones(len(idx_trn)), np.zeros(len(idx_tst)))
         x = np.row_stack((r_trn[idx_trn,:], r_tst[idx_tst,:]))
         
+        # store distance not label
         for i in range(len(x)):
             for j in range(len(s)):
-                if self.distance(a=r_trn[idx_trn[i],:], b=s[j,:], metric="cosine") < threshold:
-                    p[i] = 1
-                    
-        precision = metrics.precision_score(y_true=y, y_pred=p)
-        recall = metrics.recall_score(y_true=y, y_pred=p)
-        accuracy = metrics.accuracy_score(y_true=y, y_pred=p)
+                d[i] = self.distance(a=r_trn[idx_trn[i],:], b=s[j,:], metric="cosine")
         
-        return {'precision':precision, 'recall':recall, 'accuracy':accuracy}
-    
-    def membership_inference(self, r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type='lr', mi_type='hayes'):
+        # scale distances to get 'probabilities'
+        prob = self.scale(d, invert=True)
+        
+        # calculate performance metrics 
+        roc = metrics.roc_curve(y_true=y, y_score=prob)
+        auc = metrics.roc_auc_score(y_true=y, y_score=prob)
+        
+        return {'prob': prob, 'roc':roc, 'auc':auc}
+        
+    def membership_inference(self, r_trn, r_tst, s, mi_type='hayes', n_cpu=1):
         
         if mi_type == 'hayes':
-            return self.membership_inference_hayes(r_trn, r_tst, a_trn, s_trn, a_tst, s_tst, model_type)
+            return self.membership_inference_hayes(r_trn, r_tst, s, n_cpu=n_cpu)
         
         if mi_type == 'torfi':
-            return self.membership_inference_torfi(r_trn, r_tst, np.row_stack((s_trn,s_tst)))
+            return self.membership_inference_torfi(r_trn, r_tst, s)
         
         return None
     
@@ -148,11 +154,12 @@ class privacy(Validator):
         
         if analysis == 'nearest_neighbors':
         
+            # plot distributions of distances
             plt.hist((res['real'], res['synth'], 
                       res['prob'], res['rand']),
                      bins=30, 
                      label = ['Real-real','Real-synthetic','Real-probabilistic','Real-random'])
-            plt.set_xlabel(dist_metric.capitalize()+' distance', fontsize=fontsize)
+            plt.set_xlabel(res['metric'].capitalize()+' distance', fontsize=fontsize)
             plt.set_ylabel('Number of samples', fontsize=fontsize)
             plt.tick_params(axis='x', labelsize=fontsize)
             plt.tick_params(axis='y', labelsize=fontsize)
@@ -160,12 +167,19 @@ class privacy(Validator):
            
         elif analysis == 'membership_inference':
             
-            # TODO: figure out what to plot for mem inf
-            placeholder = None
+            # plot ROC curve 
+            plt.plot(res['roc'][0], res['roc'][1], label="Real")
+            plt.plot([0,1],[0,1], color="gray", linestyle='--')
+            plt.tick_params(axis='x', labelsize=fontsize)
+            plt.tick_params(axis='y', labelsize=fontsize)
+            plt.set_xlabel('False positive rate', fontsize=fontsize)
+            plt.set_ylabel('True positive rate', fontsize=fontsize)
+            plt.title('AUC = ' + res['auc'])
             
         else:
-            msg = 'Warning: plot for analysis \'' + analysis + 
-            '\' not currently implemented in privacy::plot().' 
+            msg = 'Warning: plot for analysis \'' + analysis + \
+                '\' not currently implemented in privacy::plot().' 
+            print(msg)
 
         plt.show()
         f.savefig(file_pdf, bbox_inches='tight')    
@@ -177,21 +191,21 @@ class privacy(Validator):
         n_decimal = 2
          
         if analysis == 'nearest_neighbors':
-            msg = 'Mean nearest neighbor distance: ' +
-                    '  > Real-real: ' +
-                    str(np.round(np.mean(res['real']),n_decimal)) +
-                    '  > Real-synthetic: ' +
-                    str(np.round(np.mean(res['synth']),n_decimal)) +
-                    '  > Real-probabilistic: ' +
-                    str(np.round(np.mean(res['prob']),n_decimal)) +
-                    '  > Real-random: ' +
+            msg = 'Mean nearest neighbor distance: ' + \
+                    '  > Real-real: ' + \
+                    str(np.round(np.mean(res['real']),n_decimal)) + \
+                    '  > Real-synthetic: ' + \
+                    str(np.round(np.mean(res['synth']),n_decimal)) + \
+                    '  > Real-probabilistic: ' + \
+                    str(np.round(np.mean(res['prob']),n_decimal)) + \
+                    '  > Real-random: ' + \
                     str(np.round(np.mean(res['rand']),n_decimal))
         
         elif analysis == 'membership_inference':
-            msg = 'AUC for auxiliary-synthetic: ' + res['auc_as'] +
+            msg = 'AUC for auxiliary-synthetic: ' + res['auc_as'] + \
                 'AUC for real train-test: ' + res['auc_rr']
-        else 
-            msg = 'Warning: summary message for analysis \'' + analysis + 
+        else:
+            msg = 'Warning: summary message for analysis \'' + analysis + \
             '\' not currently implemented in privacy::summarize().' 
         
         return msg
