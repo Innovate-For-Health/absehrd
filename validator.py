@@ -10,6 +10,9 @@ class Validator:
         with open(file_name, 'rb') as f:
             return pickle.load(f)
         
+    def scale(self, x):
+        return (x - min(x)) / (max(x) - min(x))
+        
     def plot(self, res, analysis, file_pdf):
         return None
     

@@ -122,21 +122,19 @@ parser_r.add_argument('--file_realism_synth',
                     help='file containing synthetic data', 
                     type=str,
                     required=True)
-parser_r.add_argument('--feature_frequency', 
-                    help='compare real and synthetic feature frequency', 
-                    action='store_true',
-                    required=False)
-parser_r.add_argument('--effect_size', 
-                    metavar='OUTCOME',
-                    help='compare real and synthetic feature effect sizes', 
+parser_r.add_argument('--outcome',
+                      help='outcome for realism metrics',
+                      type=str,
+                      required=False)
+parser_r.add_argument('--missing_value_realism',
+                    help='representation of missing value',
                     type=str,
-                    default='outcome',
+                    default='-999999',
                     required=False)
-parser_r.add_argument('--gan_train_test', 
-                    help='compare real and synthetic feature effect sizes', 
-                    type=str,
-                    metavar='OUTCOME',
-                    default='outcome',
+parser_r.add_argument('--analysis_realism',
+                    help='type of realism validation analysis',
+                    choices=choices_realism_privacy,
+                    default=choices_realism_privacy[0],
                     required=False)
 parser_r.add_argument('--output_realism', 
                     help='type of output for realism analysis', 
@@ -150,15 +148,15 @@ parser_p.add_argument('--outprefix_privacy',
                     help='file prefix for realism assessments', 
                     type=str, 
                     required=True)
-parser_r.add_argument('--file_realism_real_train', 
+parser_p.add_argument('--file_privacy_real_train', 
                     help='file containing real data used to train the synthetic data generator', 
                     type=str,
                     required=True)
-parser_r.add_argument('--file_realism_real_test', 
+parser_p.add_argument('--file_privacy_real_test', 
                     help='file containing real data not used to train the synthetic data generator', 
                     type=str,
                     required=True)
-parser_r.add_argument('--file_realism_synth', 
+parser_p.add_argument('--file_privacy_synth', 
                     help='file containing synthetic data', 
                     type=str,
                     required=True)
@@ -166,14 +164,6 @@ parser_p.add_argument('--analysis_privacy',
                     help='type of privacy validation analysis',
                     choices=choices_analysis_privacy,
                     default=choices_analysis_privacy[0],
-                    required=False)
-parser_p.add_argument('--nearest_neighbors', 
-                    help='compare nearest neighbor distances', 
-                    action='store_true',
-                    required=False)
-parser_p.add_argument('--membership_inference', 
-                    help='calculate risk of membership inference', 
-                    action='store_true',
                     required=False)
 parser_p.add_argument('--output_privacy', 
                     help='type of output for privacy analysis', 
@@ -313,21 +303,21 @@ elif args.task == 'generate':
 elif args.task == 'realism':
 
     rea = realism()
+    pre = preprocessor(missing_value=args.missing_value_realism)
+    r_trn = pre.read_file(args.file_realism_train)
+    r_tst = pre.read_file(args.file_realism_test)
+    s = pre.read_file(args.file_realism_synth)
         
     # analysis
     if args.analysis_realism == 'feature_frequency':
-        """
-        res = rea.validate_univariate(d_r, d_s, header)
-        
-        res = rea.feature_frequency(file_r_trn = args.file_realism_train, 
-                                    file_r_tst = args.file_realism_test, 
-                                    file_s = args.file_realism_synth)
-        """
-        # TODO: figure out how to write the feature frequency 
-        res = None
+        res = rea.feature_frequency(r_trn=r_trn['x'], r_tst=r_tst['x'], s=s['x'], 
+                                    header=r_trn['header'],
+                                    missing_value=args.missing_value_realism)
         
     elif args.analysis_realism == 'feature_effect':
-        res = None
+        res = rea.feature_effect(r_trn=r_trn['x'], r_tst=r_tst['x'], s=s['x'], 
+                                    header=r_trn['header'],
+                                    missing_value=args.missing_value_realism)
         
     elif args.analysis_realism == 'gan_train_test':
         res = rea.gan_train_test(r_trn, r_tst, s, args.outcome)
@@ -344,10 +334,10 @@ elif args.task == 'realism':
         
     elif args.output_realism == 'plot':
         outfile = args.outprefix_realism + '_' + args.analysis_realism+ '.pdf'
-        pri.plot(res, analysis=args.output_realism, file_pdf=outfile)
+        rea.plot(res, analysis=args.output_realism, file_pdf=outfile)
     
     elif args.output_realism == 'summary':
-        msg = pri.summarize(res, analysis=args.output_realism)
+        msg = rea.summarize(res, analysis=args.output_realism)
         print(msg)
         
     else:

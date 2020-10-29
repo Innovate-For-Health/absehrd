@@ -212,9 +212,9 @@ class preprocessor:
                 m[j]['max'] = np.max(d.astype(np.float))
             
             if(m[j]['type'] == 'categorical'):
-               m[j]['unique'] = ','.join(np.unique(x))
+               m[j]['unique'] = ','.join(np.unique(x[:,j]))
             
-            if(np.where(x == self.missing_value)[0] > 0):
+            if(len(np.where(x == self.missing_value)[0]) > 0):
                 m[j]['missing'] = True
             else:
                 m[j]['missing'] = False
@@ -226,6 +226,8 @@ class preprocessor:
         
         if unique_values is None:
             unique_values = np.unique(x)
+        else:
+            unique_values = np.array(unique_values)
         
         idx = np.where(unique_values == self.missing_value)[0]
         if add_missing_col:
@@ -237,7 +239,7 @@ class preprocessor:
         x_hot = np.zeros(shape=(len(x), n_uniq), dtype=int)
         
         for j in range(n_uniq):
-            u_label[j] = label + self.delim + str(j)
+            u_label = np.append(u_label, label + self.delim + str(j))
             
             for i in range(len(x)):
                 if(x[i] == unique_values[j]):
@@ -345,7 +347,7 @@ class preprocessor:
             elif c_type == 'categorical':
                 
                 res = self.get_one_hot_encoding(x=x_j, label=header[j], 
-                        unique_values=','.split(m[j]['unique']), 
+                        unique_values=(m[j]['unique']).split(','), 
                         add_missing_col=True)
                 s_j = res['x']
                 d_header = np.append(d_header, res['header'])
@@ -395,6 +397,8 @@ class preprocessor:
             idx = np.where(s_i==np.max(s_i))[0]
             if len(idx) > 1:
                 idx = idx[np.random.randint(low=0,high=len(idx), size=1)]
+            else:
+                idx = idx[0]
             x = np.append(x, unique_values[idx])
             
         return x
@@ -448,7 +452,7 @@ class preprocessor:
             
             elif m[j]['type'] == 'categorical':
                 x_j = self.unravel_one_hot_encoding(s=s_j, 
-                        header=header[idx_col], unique_values=','.split(m[j]['unique']))
+                        unique_values=(m[j]['unique']).split(','))
             
             elif m[j]['type'] == 'binary':
                 
