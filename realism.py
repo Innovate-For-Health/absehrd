@@ -31,32 +31,32 @@ class realism(Validator):
     def __init__(self):
          self.delim = '__'
     
-    def validate_univariate(self, d_r, d_s, header):
+    def validate_univariate(self, r, s, header):
                 
-        frq_r = np.zeros(shape=d_r['x'].shape[1])
-        for j in range(d_r['x'].shape[1]):
-            frq_r[j] = np.mean(d_r['x'][:,j])
+        frq_r = np.zeros(shape=r.shape[1])
+        for j in range(r.shape[1]):
+            frq_r[j] = np.mean(r[:,j])
         
-        frq_s = np.zeros(shape=d_s['x'].shape[1])
-        for j in range(d_s['x'].shape[1]):
-            frq_s[j] = np.mean(d_s['x'][:,j])
+        frq_s = np.zeros(shape=s.shape[1])
+        for j in range(s.shape[1]):
+            frq_s[j] = np.mean(s[:,j])
             
         return {'frq_r':frq_r, 'frq_s':frq_s, 
-                'header_r':d_r['header'], 'header_s':d_s['header']}
+                'header_r':header, 'header_s':header}
     
-    def validate_effect(self, d_r, d_s, outcome):
+    def validate_effect(self, r, s, header, outcome):
         
         max_iter = 1000000
         l1_ratio = None
-        penalty == 'l2'
+        penalty = 'l2'
         solver = 'lbfgs'
 
-        x_r = d_r['x']
-        x_s = d_s['x']
+        x_r = r
+        x_s = s
         
-        idx_outcome = np.where(d_r['header'] == outcome)
+        idx_outcome = np.where(header == outcome)
         if len(idx_outcome) == 0:
-            idx_outcome = np.where(d_r['header'] == outcome+delim+outcome)
+            idx_outcome = np.where(header == outcome+self.delim+outcome)
         y_r = np.reshape(np.round(np.reshape(x_r[:,idx_outcome], 
                     newshape=(len(x_r),1))).astype(int), len(x_r))
         y_s = np.reshape(np.round(np.reshape(x_s[:,idx_outcome], 
@@ -70,11 +70,11 @@ class realism(Validator):
         reg_s = LogisticRegression(max_iter=max_iter, solver=solver,
                 penalty=penalty, l1_ratio=l1_ratio).fit(X=x_s, y=y_s)
         
-        coef_r = self.scale(reg_r.coef_)
-        coef_s = self.scale(reg_s.coef_)
+        effect_r = self.scale(reg_r.coef_)
+        effect_s = self.scale(reg_s.coef_)
 
         return {'effect_r':effect_r, 'effect_s':effect_s, 
-                'header_r':d_r['header'], 'header_s':d_s['header']}
+                'header_r':header, 'header_s':header}
         
     
     def validate_prediction(self, x_synth, y_synth, x_real, y_real, 
@@ -237,6 +237,73 @@ class realism(Validator):
         return dist
         
         
+            
+    def feature_frequency(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, header, missing_value):
+        
+        # preprocess
+        pre = preprocessor(missing_value)
+        met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
+        obj_d_r_trn = pre.get_discretized_matrix(x=mat_f_r_trn, 
+                                                 m=met_f_r, 
+                                                 header=header,
+                                                 debug=False)
+        obj_d_r_tst = pre.get_discretized_matrix(x=mat_f_r_tst, 
+                                                 m=met_f_r, 
+                                                 header=header,
+                                                 debug=False)
+        obj_d_s = pre.get_discretized_matrix(x=mat_f_s, 
+                                                 m=met_f_r, 
+                                                 header=header,
+                                                 debug=False)
+        
+        # compare r_trn and r_tst with s
+        res_trn = self.validate_univariate(r=obj_d_r_trn['x'], 
+                                           s=obj_d_s['x'], 
+                                           header=header)
+        res_tst = self.validate_univariate(r=obj_d_r_tst['x'], 
+                                           s=obj_d_s['x'], 
+                                           header=header)
+        
+        # combine results
+        return {'frq_r_trn':res_trn['frq_r'], 'frq_s_trn':res_trn['frq_s'],
+                'frq_r_tst':res_tst['frq_r'], 'frq_s_tst':res_tst['frq_s'],
+                'header':obj_d_r_trn['header']}
+    
+    def feature_effect(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, 
+                       header, outcome, missing_value):
+        
+        # preprocess
+        pre = preprocessor(missing_value)
+        met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
+        obj_d_r_trn = pre.get_discretized_matrix(x=mat_f_r_trn, 
+                                                 m=met_f_r, 
+                                                 header=header,
+                                                 debug=False)
+        obj_d_r_tst = pre.get_discretized_matrix(x=mat_f_r_tst, 
+                                                 m=met_f_r, 
+                                                 header=header,
+                                                 debug=False)
+        obj_d_s = pre.get_discretized_matrix(x=mat_f_s, 
+                                                 m=met_f_r, 
+                                                 header=header,
+                                                 debug=False)
+        
+        # compare r_trn and r_tst with s
+        res_trn = self.validate_effect(r=obj_d_r_trn['x'], 
+                                           s=obj_d_s['x'], 
+                                           header=header,
+                                           outcome=outcome)
+        res_tst = self.validate_effect(r=obj_d_r_tst['x'], 
+                                           s=obj_d_s['x'], 
+                                           header=header,
+                                           outcome=outcome)
+        
+        # combine results
+        return {'effect_r_trn':res_trn['effect_r'], 
+                'effect_s_trn':res_trn['effect_s'],
+                'effect_r_tst':res_tst['effect_r'], 
+                'effect_s_tst':res_tst['effect_s']}
+    
     def plot(self, res, analysis, file_pdf):
         
         fontsize = 6
@@ -248,10 +315,13 @@ class realism(Validator):
             plt.plot([0,1],[0,1], color="gray", linestyle='--')
             plt.scatter(res['frq_r_trn'], res['frq_s_trn'], label='Train')
             plt.scatter(res['frq_r_tst'], res['frq_s_tst'], label='Test')
-            plt.set_xlabel('Real feature frequency', fontsize=fontsize)
-            plt.set_ylabel('Synthetic feature frequency', fontsize=fontsize)
-            plt.set_xlim([0, 1])
-            plt.set_ylim([0, 1])
+            for i in range(len(res['header'])):
+                plt.text(x=res['frq_r_trn'][i], y=res['frq_s_trn'][i], 
+                         s=res['header'][i])
+            plt.xlabel('Real feature frequency', fontsize=fontsize)
+            plt.ylabel('Synthetic feature frequency', fontsize=fontsize)
+            plt.xlim([0, 1])
+            plt.ylim([0, 1])
             plt.tick_params(axis='x', labelsize=fontsize)
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.legend(fontsize=fontsize)
@@ -260,10 +330,10 @@ class realism(Validator):
             
             plt.plot([0,1],[0,1], color="gray", linestyle='--')
             plt.scatter(res['frq_r'], res['frq_s'], label='Importance')
-            plt.set_xlabel('Real', fontsize=fontsize)
-            plt.set_ylabel('Synthetic', fontsize=fontsize)
-            plt.set_xlim([0, 1])
-            plt.set_ylim([0, 1])
+            plt.xlabel('Real', fontsize=fontsize)
+            plt.ylabel('Synthetic', fontsize=fontsize)
+            plt.xlim([0, 1])
+            plt.ylim([0, 1])
             plt.tick_params(axis='x', labelsize=fontsize)
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.legend(fontsize=fontsize)
@@ -277,8 +347,8 @@ class realism(Validator):
             plt.tick_params(axis='x', labelsize=fontsize)
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.legend(fontsize=fontsize)
-            plt.set_xlabel('False positive rate', fontsize=fontsize)
-            plt.set_ylabel('True positive rate', fontsize=fontsize)
+            plt.xlabel('False positive rate', fontsize=fontsize)
+            plt.ylabel('True positive rate', fontsize=fontsize)
 
         plt.show()
         f.savefig(file_pdf, bbox_inches='tight')    
@@ -289,11 +359,17 @@ class realism(Validator):
         msg = ''
          
         if analysis == 'feature_frequency':
-            corr = np.corrcoef(x=res['frq_r'], y=res['frq_s'])[0,1]
-            msg = 'Frequency correlation: ' + str(np.round(corr, n_decimal))
+            corr_trn = np.corrcoef(x=res['frq_r_trn'], y=res['frq_s_trn'])[0,1]
+            msg = 'Frequency correlation: ' + str(np.round(corr_trn, n_decimal))
+            corr_tst = np.corrcoef(x=res['frq_r_tst'], y=res['frq_s_tst'])[0,1]
+            msg = msg + '\nFrequency correlation: ' + str(np.round(corr_tst, n_decimal))
         
         elif analysis == 'feature_effect':
-            msg = 'Importance correlation: ' + str(np.round(corr, n_decimal))
+            
+            corr_trn = np.corrcoef(x=res['effect_r_trn'], y=res['effect_s_trn'])[0,1]
+            msg = 'Importance correlation: ' + str(np.round(corr_trn, n_decimal))
+            corr_tst = np.corrcoef(x=res['effect_r_tst'], y=res['effect_s_tst'])[0,1]
+            msg = msg + '\nImportance correlation: ' + str(np.round(corr_tst, n_decimal))
         
         elif analysis == 'gan_train_test':
             msg = 'Realism assessment: ' + \
@@ -308,45 +384,3 @@ class realism(Validator):
             '\' not currently implemented in realism::summarize().' 
         
         return msg
-            
-    def feature_frequency(self, r_trn, r_tst, s, header, missing_value):
-        
-        # preprocess
-        pre = preprocessor(missing_value)
-        m = pre.get_metadata(x = r_trn, header=header)
-        d_trn = pre.get_discretized_matrix(x=r_trn, m=m, header=header,
-                                           debug=False)
-        d_tst = pre.get_discretized_matrix(x=r_tst, m=m, header=header,
-                                           debug=False)
-        d_s = pre.get_discretized_matrix(x=s, m=m, header=header,
-                                           debug=False)
-        
-        # compare r_trn and r_tst with s
-        res_trn = self.validate_univariate(d_r=d_trn, d_s=d_s, header=header)
-        res_tst = self.validate_univariate(d_r=d_tst, d_s=d_s, header=header)
-        
-        # combine results
-        return {'frq_r_trn':res_trn['frq_r'], 'frq_s_trn':res_trn['frq_s'],
-                'frq_r_tst':res_tst['frq_r'], 'frq_s_tst':res_tst['frq_s']}
-    
-    def feature_effect(self, r_trn, r_tst, s, header, missing_value):
-        
-        # preprocess
-        pre = preprocessor(missing_value)
-        m = pre.get_metadata(x = r_trn, header=header)
-        d_trn = pre.get_discretized_matrix(x=r_trn, m=m, header=header,
-                                           debug=False)
-        d_tst = pre.get_discretized_matrix(x=r_tst, m=m, header=header,
-                                           debug=False)
-        d_s = pre.get_discretized_matrix(x=s, m=m, header=header,
-                                           debug=False)
-        
-        # compare r_trn and r_tst with s
-        res_trn = self.validate_effect(d_r=d_trn, d_s=d_s, header=header)
-        res_tst = self.validate_effect(d_r=d_tst, d_s=d_s, header=header)
-        
-        # combine results
-        return {'effect_r_trn':res_trn['effect_r'], 
-                'effect_s_trn':res_trn['effect_s'],
-                'effect_r_tst':res_tst['effect_r'], 
-                'effect_s_tst':res_tst['effect_s']}
