@@ -1,4 +1,4 @@
-# Synthetic Electronic Health Record Data (SEHRD)
+# Automated Brewing of Synthetic Electronic Health Record Data (ABSEHRD)
 Consolidated software package for producing and validating generators for synthetic eletronic health record data.
 
 The package incoporates existing code from the following references:
@@ -9,5 +9,3 @@ author={Torfi, Amirsina and Fox, Edward A},
 journal={arXiv preprint arXiv:2001.09346},
 year={2020}
 }
-
-.
