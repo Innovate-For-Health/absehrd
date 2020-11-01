@@ -214,7 +214,7 @@ class preprocessor:
             if(m[j]['type'] == 'categorical'):
                m[j]['unique'] = ','.join(np.unique(x[:,j]))
             
-            if(len(np.where(x == self.missing_value)[0]) > 0):
+            if(len(np.where(x[:,j] == self.missing_value)[0]) > 0):
                 m[j]['missing'] = True
             else:
                 m[j]['missing'] = False
@@ -262,13 +262,13 @@ class preprocessor:
         
         return s
     
-    def unscale(self, s, min_value, max_value):
+    def unscale(self, x, min_value, max_value):
         
-        x = np.zeros(len(s))
+        c = np.zeros(len(x))
         
-        for i in range(len(s)):
-            x[i] = s[i] * (max_value - min_value) + min_value
-        return x
+        for i in range(len(x)):
+            c[i] = x[i] * (max_value - min_value) + min_value
+        return c
     
     def get_missing_column(self, x):
         
@@ -386,26 +386,26 @@ class preprocessor:
         
         return {'x':d_x, 'header':d_header}
     
-    def unravel_one_hot_encoding(self, s, unique_values):
+    def unravel_one_hot_encoding(self, x, unique_values):
         
-        x = []
+        c = []
        
-        for i in range(len(s)):
+        for i in range(len(x)):
             
-            s_i = s[i,:].astype(float)
+            x_i = x[i,:].astype(float)
             
-            idx = np.where(s_i==np.max(s_i))[0]
+            idx = np.where(x_i==np.max(x_i))[0]
             if len(idx) > 1:
                 idx = idx[np.random.randint(low=0,high=len(idx), size=1)]
             else:
                 idx = idx[0]
-            x = np.append(x, unique_values[idx])
+            c = np.append(c, unique_values[idx])
             
-        return x
+        return c
     
-    def restore_matrix(self, s, m, header):
+    def restore_matrix(self, x, m, header):
         
-        x_prime = []
+        c_prime = []
         variable_names = []
         variable_values = []
         header_prime = m['label']
@@ -422,52 +422,52 @@ class preprocessor:
         
         for j in range(len(m)):
             
-            x_j = []
+            c_j = []
             idx_missing = []
             idx_col = np.where(variable_names == m[j]['label'])[0]
             
             if m[j]['type'] != 'categorical' and len(idx_col) > 1:
                 for k in np.where(variable_names == m[j]['label'])[0]:
                     if variable_values[k] == str(self.missing_value):
-                        idx_missing = np.where(s[:,k] == 1)[0]
+                        idx_missing = np.where(x[:,k] == 1)[0]
                     else:
                         idx_col = k
                         
-            s_j = s[:,idx_col]
+            s_j = x[:,idx_col]
             
             if m[j]['type'] == 'constant':
-                x_j = np.full(shape=len(s), fill_value=m[j]['zero'])
-                x_j[idx_missing] = self.missing_value
+                c_j = np.full(shape=len(x), fill_value=m[j]['zero'])
+                c_j[idx_missing] = self.missing_value
             
             elif m[j]['type'] == 'continuous' or m[j]['type'] == 'count':
                 min_value = float(m[j]["min"])
                 max_value = float(m[j]["max"])
-                x_j = self.unscale(s=s_j.astype('float'), min_value=min_value, max_value=max_value)
+                c_j = self.unscale(x=s_j.astype('float'), min_value=min_value, max_value=max_value)
                 
                 if m[j]['type'] == 'count':
-                  x_j = np.round(x_j)
+                  c_j = np.round(c_j)
                   
-                x_j = x_j.astype(str)
-                x_j[idx_missing] = self.missing_value
+                c_j = c_j.astype(str)
+                c_j[idx_missing] = self.missing_value
             
             elif m[j]['type'] == 'categorical':
-                x_j = self.unravel_one_hot_encoding(s=s_j, 
+                c_j = self.unravel_one_hot_encoding(x=s_j, 
                         unique_values=(m[j]['unique']).split(','))
             
             elif m[j]['type'] == 'binary':
                 
-                x_j = np.full(shape=len(s), fill_value=m[j]['zero'], dtype='O')
+                c_j = np.full(shape=len(x), fill_value=m[j]['zero'], dtype='O')
                 
                 for i in range(len(s_j)):
                     if s_j[i] == 1:
-                        x_j[i] = m[j]['one']
+                        c_j[i] = m[j]['one']
                         
-                x_j[idx_missing] = self.missing_value
+                c_j[idx_missing] = self.missing_value
                         
-            if len(x_prime) == 0:
-                x_prime = x_j
+            if len(c_prime) == 0:
+                c_prime = c_j
             else: 
-                x_prime = np.column_stack((x_prime, x_j))
+                c_prime = np.column_stack((c_prime, c_j))
                 
-        return {'x':x_prime, 'header':header_prime}
+        return {'x':c_prime, 'header':header_prime}
             

@@ -1,5 +1,7 @@
 # NOTE: must set PYTHONPATH variable for pytest to recognize local modules
 # export PYTHONPATH=/my/path/to/modules
+# OR
+# export PYTHONPATH=$(pwd)
 
 import numpy as np
 import os
@@ -11,6 +13,8 @@ from preprocessor import preprocessor
 
 class TestPreprocessor:
     
+    # create toy datasets    
+    
     def create_binary_matrix(self, n, m):
         arr = np.random.randint(low=0,high=2, size=(n,m))
         return(arr)
@@ -20,6 +24,26 @@ class TestPreprocessor:
         for i in range(m):
             header = np.append(header, 'col'+str(i))
         return(header)
+    
+    def create_multimodal_object(self, n=1000):
+        
+        count_min = 5
+        count_max = 19
+        constant_value = 'helloworld'
+        binary_A = 'A'
+        binary_B = 'B'
+        categorical_values = ['X','Y','Z']
+        
+        header = ['constant','binary01', 'binaryAB', 'categorical','count','continuous']
+        v_constant = np.full(shape=n, fill_value=constant_value)
+        v_binary01 = np.concatenate((np.full(shape=n-1, fill_value=0), np.array([1])))
+        v_binaryAB = np.concatenate((np.full(shape=n-1, fill_value=binary_A), np.array([binary_B])))
+        v_categorical = np.random.choice(categorical_values, size=n)
+        v_count = np.random.randint(low=count_min, high=count_max+1, size=n)
+        v_continuous = np.random.random(size=n)
+                
+        x = np.column_stack((v_constant, v_binary01, v_binaryAB, v_categorical, v_count, v_continuous))
+        return({'x':x, 'header':header})
 
     def test_get_file_type_npy(self):
         pre = preprocessor('null')
@@ -183,14 +207,172 @@ class TestPreprocessor:
         pre = preprocessor('none')
         assert pre.is_numeric(['1.2', '3.3', '5.0'])
         
-    def test_remove_na(self):
+    def test_remove_na_1(self):
         
         missing_value = -999999
         pre = preprocessor(missing_value=missing_value)
         
-        v1 = np.array(['hello', missing_value, 'world'])
-        d1 = pre.remove_na(v1)
-        g1 = np.array(['hello', 'world'])
+        v = np.array(['hello', missing_value, 'world'])
+        d = pre.remove_na(v)
+        g = np.array(['hello', 'world'])
     
-        assert (g1==d1).any()
+        assert (g==d).all()
+        
+    def test_remove_na_2(self):
+        
+        missing_value = '-999999'
+        pre = preprocessor(missing_value=missing_value)
+        
+        v = np.array(['hello', missing_value, 'world'])
+        d = pre.remove_na(v)
+        g = np.array(['hello', 'world'])
     
+        assert (g==d).all()
+        
+    def test_remove_na_3(self):
+        
+        missing_value = 'NULL'
+        pre = preprocessor(missing_value=missing_value)
+        
+        v = np.array(['hello', missing_value, 'world'])
+        d = pre.remove_na(v)
+        g = np.array(['hello', 'world'])
+    
+        assert (g==d).all()
+        
+    def test_remove_na_4(self):
+       
+        missing_value = -99999
+        pre = preprocessor(missing_value=missing_value)
+        
+        v = np.array([3,2,5,missing_value,5,2,1])
+        d = pre.remove_na(v)
+        g = np.array([3,2,5,5,2,1])
+        
+        assert (g==d).all()
+        
+    def test_remove_na_5(self):
+       
+        missing_value = '-99999'
+        pre = preprocessor(missing_value=missing_value)
+        
+        v = np.array([3,2,5,missing_value,5,2,1])
+        d = pre.remove_na(v)
+        g = np.array([3,2,5,5,2,1], dtype=str)
+        
+        assert (g==d).all()
+        
+    def test_remove_na_6(self):
+       
+        missing_value = 'NULL'
+        pre = preprocessor(missing_value=missing_value)
+        
+        v = np.array([3,2,5,missing_value,5,2,1])
+        d = pre.remove_na(v)
+        g = np.array([3,2,5,5,2,1], dtype=str)
+        
+        assert (g==d).all()
+
+    def test_get_variable_type_count(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        x = np.random.randint(low=0,high=11,size=1000)
+        var_type = pre.get_variable_type(x=x, label='my_feature')
+        
+        assert var_type == 'count'
+
+    def test_get_variable_type_categorical(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        x = np.random.choice(['hello','world','oi','terra','hi','goodbye','tchau'],1000)
+        var_type = pre.get_variable_type(x=x, label='my_feature')
+        
+        assert var_type == 'categorical'
+        
+    def test_get_variable_type_binary(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        x = np.random.randint(low=0,high=2,size=1000)
+        var_type = pre.get_variable_type(x=x, label='my_feature')
+        
+        assert var_type == 'binary'
+        
+    def test_get_variable_type_constant_num(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        x = np.zeros(shape=1000)
+        var_type = pre.get_variable_type(x=x, label='my_feature')
+        
+        assert var_type == 'constant'
+        
+    def test_get_variable_type_constant_str(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        x = np.full(fill_value='hello world', shape=10000)
+        var_type = pre.get_variable_type(x=x, label='my_feature')
+        
+        assert var_type == 'constant'
+  
+
+    def test_get_variable_type_continuous(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        x = np.random.random(1000)
+        var_type = pre.get_variable_type(x=x, label='my_feature')
+        
+        assert var_type == 'continuous'
+        
+    def test_get_minority_class_1(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        n0 = 20
+        n1 = 17
+        choices = ['hello','world']
+        x = np.concatenate((np.full(n0,choices[0]), np.full(n1,choices[1])))
+        assert pre.get_minority_class(x) == choices[1]
+            
+    def test_get_minority_class_2(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        n0 = 20
+        n1 = 20
+        choices = ['hello','world']
+        x = np.concatenate((np.full(n0,choices[0]), np.full(n1,choices[1])))
+        assert pre.get_minority_class(x) == choices[0]
+
+    def test_get_minority_class_3(self):
+        
+        pre = preprocessor(missing_value=-999999)
+        n0 = 4
+        n1 = 40
+        choices = ['hello','world']
+        x = np.concatenate((np.full(n0,choices[0]), np.full(n1,choices[1])))
+        assert pre.get_minority_class(x) == choices[0]
+    
+    def test_get_metadata_type(self):
+        
+        pre = preprocessor(missing_value= -999999)
+        obj = self.create_multimodal_object(n=1000)
+        x = obj['x']
+        
+        m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
+        g_type = ['constant','binary','binary','categorical','count','continuous']
+        assert (m['type'].tolist() == g_type).all()
+        
+    def test_get_metadata_min(self):
+        
+        pre = preprocessor(missing_value= -999999)
+        threshold = 1e-5
+        
+        obj = self.create_multimodal_object(n=1000)
+        x = obj['x']
+        header = obj['header']
+        
+        m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
+        min_count = np.min(x[:,np.where(header=='count')])
+        min_continuous = np.min(x[:,np.where(header=='continuous')[0][0]])
+        g_min = [0,0,0,0,min_count, min_continuous]
+        
+        assert (np.abs(g_min - m['min']) < threshold).all()
+        
+        
