@@ -1,90 +1,1 @@
-import os.path
-import numpy as np
-from corgan import corgan
-
-class tester_cor(object):
-    
-    def test_train():
-        
-        path_checkpoint='test_ckpts'
-        prefix_checkpoint='test'
-        n_epochs=10
-        batch_size=512
-        debug=False
-        
-        # dummy dataset
-        n = 1000
-        m = 7
-        x = np.random.randint(low=0, high=2, size=(n,m))
-        
-        model = corgan.train(corgan, 
-                             x=x, 
-                             n_epochs_pretrain=10,
-                             n_epochs=n_epochs,
-                             n_cpu=8, 
-                             batch_size=batch_size,
-                             path_checkpoint=path_checkpoint, 
-                             prefix_checkpoint=prefix_checkpoint,
-                             debug=debug)
-        
-        file_ckpt=os.path.join(path_checkpoint, prefix_checkpoint + ".model_epoch_%d.pth" % n_epochs)
-        return os.path.isfile(file_ckpt)
-    
-    def test_generate():
-        
-        path_checkpoint='test_ckpts'
-        prefix_checkpoint='test'
-        n_epochs=10
-        batch_size=512
-        latent_dim = 128
-        debug=False
-        
-        # dummy dataset
-        n_gen = 500
-        n = 1000
-        m = 7
-        x = np.random.randint(low=0, high=2, size=(n,m))
-        
-        model = corgan.train(corgan, 
-                             x=x, 
-                             n_epochs_pretrain=10,
-                             n_epochs=n_epochs,
-                             n_cpu=8, 
-                             batch_size=batch_size,
-                             latent_dim=latent_dim,
-                             path_checkpoint=path_checkpoint, 
-                             prefix_checkpoint=prefix_checkpoint,
-                             debug=debug)
-        
-        file_ckpt=os.path.join(path_checkpoint, prefix_checkpoint + ".model_epoch_%d.pth" % n_epochs)
-        x_synth = corgan.generate(model = file_ckpt, n_gen=n_gen)
-
-        if not (len(x_synth) == n_gen 
-                    and np.min(x_synth) >=0 
-                    and np.max(x_synth) <= 1):
-            return False
-        
-        x_synth = corgan.generate(model = model, n_gen=n_gen)
-        
-        if not (len(x_synth) == n_gen 
-                    and np.min(x_synth) >=0 
-                    and np.max(x_synth) <= 1):
-            return False
-        
-        return True
-        
-    
-def main():
-    
-    buffer = "\t\t"
-    
-    print('Testing corgan.train()', end='...\t' + buffer)
-    print('PASS') if tester_cor.test_train() else print('FAIL')
-    
-    print('Testing corgan.generate()', end='...' + buffer)
-    print('PASS') if tester_cor.test_generate() else print('FAIL')
-        
-if __name__ == "__main__":
-    main()
-
-
+# NOTE: must set PYTHONPATH variable for pytest to recognize local modules# export PYTHONPATH=/my/path/to/modules# OR# export PYTHONPATH=$(pwd)import numpy as npimport os.path# sehrd modulesfrom corgan import corganclass TestCorgan:        def test_train(self):                path_checkpoint='test_ckpts'        prefix_checkpoint='test'        n_epochs=10        cor = corgan()                # dummy dataset        n = 1000        m = 7        x = np.random.randint(low=0, high=2, size=(n,m))                model = cor.train(x=x,                              n_epochs_pretrain=10,                             n_epochs=10,                             n_cpu=1,                              batch_size=512,                             path_checkpoint='test_ckpts',                              prefix_checkpoint='test',                             debug=False)                file_ckpt=os.path.join(path_checkpoint, prefix_checkpoint + ".model_epoch_%d.pth" % n_epochs)        assert os.path.isfile(file_ckpt)        def test_generate(self):                cor = corgan()                # dummy dataset        n_gen = 500        n = 1000        m = 7        x = np.random.randint(low=0, high=2, size=(n,m))                model = cor.train(x=x,                              n_epochs_pretrain=10,                             n_epochs=10,                             n_cpu=1,                             debug=False)                x_synth = cor.generate(model = model, n_gen=n_gen)                assert len(x_synth) == n_gen            def test_save_and_load(self):                cor = corgan()                # dummy dataset        n_gen = 500        n = 1000        m = 7        x = np.random.randint(low=0, high=2, size=(n,m))                model_saved = cor.train(x=x,                              n_epochs_pretrain=10,                             n_epochs=10,                             n_cpu=1,                             debug=False)                file = 'test.pkl'        cor.save_obj(obj=model_saved, file_name=file)        model_loaded = cor.load_obj(file)                x_synth = cor.generate(model = model_loaded, n_gen=n_gen)                assert len(x_synth) == n_gen
