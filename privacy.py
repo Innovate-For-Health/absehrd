@@ -3,6 +3,7 @@ from sklearn import metrics
 from sklearn.neighbors import DistanceMetric
 import random
 import matplotlib.pyplot as plt
+from scipy.spatial.distance import cdist
 
 # sehrd modules
 from validator import Validator
@@ -112,29 +113,25 @@ class privacy(Validator):
         roc = metrics.roc_curve(y_true=y, y_score=prob)
         auc = metrics.roc_auc_score(y_true=y, y_score=prob)
         
-        return {'prob': prob, 'roc':roc, 'auc':auc}
+        return {'prob': prob, 'label':y, 'roc':roc, 'auc':auc}
     
-    def membership_inference_torfi(self, r_trn, r_tst, s, n_sample=100, threshold=1e-3):
+    def membership_inference_torfi(self, r_trn, r_tst, s):
         
-        idx_trn = random.sample(range(len(r_trn)), min(n_sample, len(r_trn)))
-        idx_tst = random.sample(range(len(r_tst)), min(n_sample, len(r_tst)))
-        d = np.zeros(shape=len(idx_trn)+len(idx_tst))
-        y = np.append(np.ones(len(idx_trn)), np.zeros(len(idx_tst)))
-        x = np.row_stack((r_trn[idx_trn,:], r_tst[idx_tst,:]))
-        
-        # store distance not label
-        for i in range(len(x)):
-            for j in range(len(s)):
-                d[i] = self.distance(a=r_trn[idx_trn[i],:], b=s[j,:], metric="cosine")
+        # store all pairwise distances
+        d_trn = cdist(r_trn, s, metric='cosine').min(axis=1)
+        d_tst = cdist(r_tst, s, metric='cosine').min(axis=1)
         
         # scale distances to get 'probabilities'
-        prob = self.scale(d, invert=True)
+        p_trn = self.scale(d_trn, invert=True)
+        p_tst = self.scale(d_tst, invert=True)
         
         # calculate performance metrics 
-        roc = metrics.roc_curve(y_true=y, y_score=prob)
-        auc = metrics.roc_auc_score(y_true=y, y_score=prob)
+        p = np.append(p_trn, p_tst)
+        y = np.append(np.ones(len(p_trn)), np.zeros(len(p_tst))) 
+        roc = metrics.roc_curve(y_true=y, y_score=p)
+        auc = metrics.roc_auc_score(y_true=y, y_score=p)
         
-        return {'prob': prob, 'roc':roc, 'auc':auc}
+        return {'prob': p, 'label':y, 'roc':roc, 'auc':auc}
         
     def membership_inference(self, r_trn, r_tst, s, mi_type='hayes', n_cpu=1):
         
