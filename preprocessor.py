@@ -70,7 +70,10 @@ class preprocessor:
                 delimiter = ','
                 if self.get_file_type(file_name) == 'tsv':
                     delimiter = '\t'
-                arr = np.loadtxt(file_name, dtype=str, delimiter=delimiter)
+                    
+                arr = np.loadtxt(file_name, dtype=str, delimiter=delimiter, 
+                                 skiprows=1)
+                
                 header = np.loadtxt(file_name, dtype=str, delimiter=delimiter, 
                                     comments=None, skiprows=0, max_rows=1)
                 header[0] = header[0].replace('# ','')
@@ -188,7 +191,7 @@ class preprocessor:
     def get_metadata(self, x, header):
         
         names = ['label','type', 'min', 'max', 'zero', 'one','unique','missing']
-        formats = ['<U100','<U11','float64', 'float64',str(x.dtype),str(x.dtype), str(x.dtype), '?']
+        formats = ['<U100','<U11','float64', 'float64',str(x.dtype),str(x.dtype), '<U1000', '?']
         m = np.recarray(shape=x.shape[1], names=names, formats=formats)
         
         for j in range(x.shape[1]):
