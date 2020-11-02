@@ -1,200 +1,1 @@
-"""
-Description: automated tests for SEHRD realism functions.
-Author: Haley Hunter-Zinck
-Date: August 14, 2020
-"""
-
-from realism import realism
-from preprocessor import preprocessor
-import numpy as np
-
-class tester_rea(object):
-    
-    def test_validate_univariate():
-        
-        pre = preprocessor(missing_value='-99999')
-        rea = realism()
-        
-        n = 1000
-        m = 4
-        
-        header = np.full(shape=m, fill_value='col')
-        for j in range(m):
-            header[j] = header[j] + str(j)
-            
-        s = np.random.randint(low=0, high=2, size=(n,m))
-        r = s
-        
-        # preprocess
-        m_r = pre.get_metadata(r, header)
-        d_r = pre.get_discretized_matrix(r, m_r, header)
-        m_s = pre.get_metadata(s, header)
-        d_s = pre.get_discretized_matrix(s, m_s, header)
-        
-        res = rea.validate_univariate(r=d_r['x'], s=d_s['x'], header=header)
-        
-        for j in range(m):
-            if res['frq_r'][j] != res['frq_s'][j]:
-                return False
-        
-        return True
-    
-    def test_gan_train(debug=False):
-        
-        rea = realism()
-        
-        n = 1000
-        m_2 = 3
-        threshold = 0.05
-        max_beta = 10
-        n_epoch = 100
-        
-        beta = np.append(np.random.randint(low=-max_beta,high=0,size=(m_2,1)), 
-                         np.random.randint(low=0,high=max_beta,size=(m_2,1)))
-        x_real = np.random.randint(low=0, high=2, size=(n,m_2*2))
-        x_for_e = np.reshape(np.matmul(x_real, beta), (n,1)) + 0.5 * np.random.random(size=(n,1))
-        y_real = np.reshape(np.round(1.0 / (1.0 + np.exp(-x_for_e))), (n,))
-        
-        res_real = rea.gan_train(x_synth=x_real, y_synth=y_real, 
-                                      x_real=x_real, y_real=y_real, n_epoch=n_epoch)
-        res_gan_train1 = rea.gan_train(x_synth=x_real, y_synth=y_real, 
-                                      x_real=x_real, y_real=y_real, n_epoch=n_epoch)
-        
-        if debug:
-            print('percentage 1 for y_real: ', str(float(sum(y_real)) / n * 100))
-            print('auc real: '+ str(res_real['auc']))
-            print('auc gan-train #1: ', str(res_gan_train1['auc']))
-        
-        if (abs(res_real['auc'] - res_gan_train1['auc']) > threshold):
-            return False
-        
-        # flip label to ensure AUCs are very different
-        x_synth = x_real
-        y_synth = 1 - y_real
-        res_gan_train2 = rea.gan_train(x_synth, y_synth, x_real, y_real, n_epoch=n_epoch)
-        
-        if debug:
-            print('auc real: '+ str(res_real['auc']))
-            print('auc gan-train #2: ', str(res_gan_train2['auc']))
-
-        if (abs(res_real['auc'] - res_gan_train2['auc']) <= threshold):
-            return False
-        
-        return True
-    
-    def test_gan_test(debug=False):
-        
-        rea = realism()
-        
-        if debug:
-            print()
-        
-        n = 1000
-        m_2 = 3
-        threshold = 0.05
-        max_beta = 10
-        n_epoch = 100
-        
-        beta = np.append(np.random.randint(low=-max_beta,high=0,size=(m_2,1)), 
-                         np.random.randint(low=0,high=max_beta,size=(m_2,1)))
-        x_real = np.random.randint(low=0, high=2, size=(n,m_2*2))
-        x_for_e = np.reshape(np.matmul(x_real, beta), (n,1)) + 0.5 * np.random.random(size=(n,1))
-        y_real = np.reshape(np.round(1.0 / (1.0 + np.exp(-x_for_e))), (n,))
-        
-        res_real = rea.gan_test(x_synth=x_real, y_synth=y_real, 
-                                      x_real=x_real, y_real=y_real, n_epoch=n_epoch)
-        res_gan_test1 = rea.gan_test(x_synth=x_real, y_synth=y_real, 
-                                      x_real=x_real, y_real=y_real, n_epoch=n_epoch)
-        
-        if debug:
-            print('percentage 1 for y_real: ', str(float(sum(y_real)) / n * 100))
-            print('auc real: '+ str(res_real['auc']))
-            print('auc gan-train #1: ', str(res_gan_test1['auc']))
-        
-        if (abs(res_real['auc'] - res_gan_test1['auc']) > threshold):
-            return False
-        
-        # flip label to ensure AUCs are very different
-        x_synth = x_real
-        y_synth = 1 - y_real
-        res_gan_test2 = rea.gan_test(x_synth, y_synth, x_real, y_real, n_epoch=n_epoch)
-        
-        if debug:
-            print('auc real: '+ str(res_real['auc']))
-            print('auc gan-train #2: ', str(res_gan_test2['auc']))
-
-        if (abs(res_real['auc'] - res_gan_test2['auc']) <= threshold):
-            return False
-        
-        return True
-    
-    def test_validate_feature(debug=False):
-        
-        if debug:
-            print()
-        
-        rea = realism()
-        n = 10000
-        
-        # categorical
-        uniq_vals = ['A','B','C']
-        r_prob = [0.1,0.6,0.3]
-        s_prob_far = [0.3,0.1,0.6]
-        s_prob_near = r_prob
-        
-        r_feat = np.random.choice(a=uniq_vals, size=n, replace=True, p=r_prob)
-        s_feat_far = np.random.choice(a=uniq_vals, size=n, replace=True, p=s_prob_far)
-        s_feat_near = np.random.choice(a=uniq_vals, size=n, replace=True, p=s_prob_near)
-        
-        dist_far = rea.validate_feature(r_feat=r_feat, s_feat=s_feat_far, var_type='categorical')
-        dist_near = rea.validate_feature(r_feat=r_feat, s_feat=s_feat_near, var_type='categorical')
-        
-        if debug:
-            print('categorical')
-            print('  dist_far = ' + str(dist_far))
-            print('  dist_near = ' + str(dist_near))
-        
-        if dist_far < dist_near:
-            return False
-        
-        # continuous
-        r_avg = 0
-        s_avg_far = 10
-        s_avg_near = 0
-        
-        r_feat = np.random.normal(loc=r_avg, scale=1, size=n)
-        s_feat_far = np.random.normal(loc=s_avg_far, scale=1, size=n)
-        s_feat_near = np.random.normal(loc=s_avg_near, scale=1, size=n)
-        
-        dist_far = rea.validate_feature(r_feat=r_feat, s_feat=s_feat_far, var_type='continuous')
-        dist_near = rea.validate_feature(r_feat=r_feat, s_feat=s_feat_near, var_type='continuous')
-        
-        if debug:
-            print('continuous')
-            print('  dist_far = ' + str(dist_far))
-            print('  dist_near = ' + str(dist_near))
-        
-        if dist_far < dist_near:
-            return False
-        
-        return True
-        
-    
-def main():
-    
-    buffer = "\t\t"
-    
-    print('Testing realism.validate_univariate()', end='...'+buffer)
-    print('PASS') if tester_rea.test_validate_univariate() else print('FAIL')
-    
-    print('Testing realism.gan_train()', end='...\t\t'+buffer)
-    print('PASS') if tester_rea.test_gan_train(debug=False) else print('FAIL')
-    
-    print('Testing realism.gan_test()', end='...\t\t\t'+buffer)
-    print('PASS') if tester_rea.test_gan_test(debug=False) else print('FAIL')
-    
-    print('Testing realism.validate_feature()', end='...\t'+buffer)
-    print('PASS') if tester_rea.test_validate_feature(debug=True) else print('FAIL')
-        
-if __name__ == "__main__":
-    main()
+import numpy as np# absehrd modulesfrom realism import realismclass TestRealism:        def create_multimodal_object(self, n=1000):                count_min = 5        count_max = 19        constant_value = 'helloworld'        binary_A = 'A'        binary_B = 'B'        categorical_values = ['X','Y','Z']                header = np.array(['constant','binary01', 'binaryAB', 'categorical','count','continuous'])        v_constant = np.full(shape=n, fill_value=constant_value)        v_binary01 = np.concatenate((np.full(shape=n-1, fill_value=0), np.array([1])))        v_binaryAB = np.concatenate((np.full(shape=n-1, fill_value=binary_A), np.array([binary_B])))        v_categorical = np.random.choice(categorical_values, size=n)        v_count = np.random.randint(low=count_min, high=count_max+1, size=n)        v_continuous = np.random.random(size=n)                        x = np.column_stack((v_constant, v_binary01, v_binaryAB, v_categorical, v_count, v_continuous))        return({'x':x, 'header':header})        def test_validate_univariate(self):                rea = realism()        n = 1000        m = 17        v = np.full(shape=m, fill_value=False)                prefix='col'        header = np.full(shape=m, fill_value='', dtype='<U'+str(len(str(m-1))+len(prefix)))        for i in range(m):            header[i] = prefix + str(i).zfill(len(str(m-1)))                x = np.random.randint(low=0, high=2, size=(n,m))        res = rea.validate_univariate(r=x, s=x, header=header)                for j in range(m):            if res['frq_r'][j] == res['frq_s'][j]:                v[j] = True                assert v.all()            def test_gan_train_match(self):                rea = realism()                n = 1000        m_2 = 3        threshold = 0.05        max_beta = 10        n_epoch = 100                beta = np.append(np.random.randint(low=-max_beta,high=0,size=(m_2,1)),                          np.random.randint(low=0,high=max_beta,size=(m_2,1)))        x_real = np.random.randint(low=0, high=2, size=(n,m_2*2))        x_for_e = np.reshape(np.matmul(x_real, beta), (n,1)) + 0.5 * np.random.random(size=(n,1))        y_real = np.reshape(np.round(1.0 / (1.0 + np.exp(-x_for_e))), (n,))                res_real = rea.gan_train(x_synth=x_real, y_synth=y_real,                                       x_real=x_real, y_real=y_real, n_epoch=n_epoch)        res_gan_train1 = rea.gan_train(x_synth=x_real, y_synth=y_real,                                       x_real=x_real, y_real=y_real, n_epoch=n_epoch)                assert (abs(res_real['auc'] - res_gan_train1['auc']) < threshold)            def test_gan_train_mismatch(self):                rea = realism()                n = 1000        m_2 = 3        threshold = 0.05        max_beta = 10        n_epoch = 100                beta = np.append(np.random.randint(low=-max_beta,high=0,size=(m_2,1)),                          np.random.randint(low=0,high=max_beta,size=(m_2,1)))        x_real = np.random.randint(low=0, high=2, size=(n,m_2*2))        x_for_e = np.reshape(np.matmul(x_real, beta), (n,1)) + 0.5 * np.random.random(size=(n,1))        y_real = np.reshape(np.round(1.0 / (1.0 + np.exp(-x_for_e))), (n,))                res_real = rea.gan_train(x_synth=x_real, y_synth=y_real,                                       x_real=x_real, y_real=y_real, n_epoch=n_epoch)        x_synth = x_real        y_synth = 1 - y_real        res_gan_train2 = rea.gan_train(x_synth, y_synth, x_real, y_real, n_epoch=n_epoch)                assert abs(res_real['auc'] - res_gan_train2['auc']) > threshold                    def test_gan_test_match(self):                rea = realism()                n = 1000        m_2 = 3        threshold = 0.05        max_beta = 10        n_epoch = 100                beta = np.append(np.random.randint(low=-max_beta,high=0,size=(m_2,1)),                          np.random.randint(low=0,high=max_beta,size=(m_2,1)))        x_real = np.random.randint(low=0, high=2, size=(n,m_2*2))        x_for_e = np.reshape(np.matmul(x_real, beta), (n,1)) + 0.5 * np.random.random(size=(n,1))        y_real = np.reshape(np.round(1.0 / (1.0 + np.exp(-x_for_e))), (n,))                res_real = rea.gan_test(x_synth=x_real, y_synth=y_real,                                       x_real=x_real, y_real=y_real, n_epoch=n_epoch)        res_gan_test1 = rea.gan_test(x_synth=x_real, y_synth=y_real,                                       x_real=x_real, y_real=y_real, n_epoch=n_epoch)                assert (abs(res_real['auc'] - res_gan_test1['auc']) < threshold)        def test_gan_test_mismatch(self):                rea = realism()                n = 1000        m_2 = 3        threshold = 0.05        max_beta = 10        n_epoch = 100                beta = np.append(np.random.randint(low=-max_beta,high=0,size=(m_2,1)),                          np.random.randint(low=0,high=max_beta,size=(m_2,1)))        x_real = np.random.randint(low=0, high=2, size=(n,m_2*2))        x_for_e = np.reshape(np.matmul(x_real, beta), (n,1)) + 0.5 * np.random.random(size=(n,1))        y_real = np.reshape(np.round(1.0 / (1.0 + np.exp(-x_for_e))), (n,))                # flip label to ensure AUCs are very different        x_synth = x_real        y_synth = 1 - y_real        res_real = rea.gan_train(x_synth=x_real, y_synth=y_real,                                       x_real=x_real, y_real=y_real, n_epoch=n_epoch)        res_gan_test2 = rea.gan_test(x_synth, y_synth, x_real, y_real, n_epoch=n_epoch)                assert (abs(res_real['auc'] - res_gan_test2['auc']) > threshold)                    def test_gan_test(self):        assert True        def test_validate_feature(self):        assert True
