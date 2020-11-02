@@ -1,4 +1,3 @@
-from re import search
 import numpy as np
 import feather
 from os.path import isfile
@@ -13,13 +12,13 @@ class preprocessor:
         
         file_type = ''
         
-        if search("\.npy$", file_name):
+        if file_name.endswith('.npy'):
             file_type = 'npy'
-        elif search("\.feather$", file_name):
+        elif file_name.endswith('.feather'):
             file_type = 'feather'
-        elif search("\.csv$", file_name):
+        elif file_name.endswith('.csv'):
             file_type = 'csv'
-        elif search("\.tsv$", file_name):
+        elif file_name.endswith('.tsv'):
             file_type = 'tsv'
         else:
             file_type = None
@@ -214,7 +213,7 @@ class preprocessor:
             if(m[j]['type'] == 'categorical'):
                m[j]['unique'] = ','.join(np.unique(x[:,j]))
             
-            if(len(np.where(x[:,j] == self.missing_value)[0]) > 0):
+            if(len(np.where(x[:,j] == str(self.missing_value))[0]) > 0):
                 m[j]['missing'] = True
             else:
                 m[j]['missing'] = False
@@ -229,7 +228,7 @@ class preprocessor:
         else:
             unique_values = np.array(unique_values)
         
-        idx = np.where(unique_values == self.missing_value)[0]
+        idx = np.where(unique_values == str(self.missing_value))[0]
         if add_missing_col:
             if len(idx) == 0:
                 unique_values = np.append(unique_values, self.missing_value)
@@ -300,7 +299,7 @@ class preprocessor:
                     
         return idx
     
-    def get_discretized_matrix(self, x, m, header, debug=False):
+    def get_discretized_matrix(self, x, m, header, require_missing=True, debug=False):
         
         d_x = np.empty(shape=0)
         d_header = np.empty(shape=0)
@@ -311,8 +310,11 @@ class preprocessor:
             x_j = x[:,j]
             s_j = []
             
-            #contains_missing = len(self.remove_na(x_j)) < len(x_j)
-            contains_missing=True
+            if require_missing:
+                contains_missing = True
+            else:
+                contains_missing = len(self.remove_na(x_j)) < len(x_j)
+            
             
             if c_type == 'constant':
                 
@@ -348,7 +350,7 @@ class preprocessor:
                 
                 res = self.get_one_hot_encoding(x=x_j, label=header[j], 
                         unique_values=(m[j]['unique']).split(','), 
-                        add_missing_col=True)
+                        add_missing_col=contains_missing)
                 s_j = res['x']
                 d_header = np.append(d_header, res['header'])
                 

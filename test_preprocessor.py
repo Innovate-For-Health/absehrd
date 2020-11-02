@@ -34,7 +34,7 @@ class TestPreprocessor:
         binary_B = 'B'
         categorical_values = ['X','Y','Z']
         
-        header = ['constant','binary01', 'binaryAB', 'categorical','count','continuous']
+        header = np.array(['constant','binary01', 'binaryAB', 'categorical','count','continuous'])
         v_constant = np.full(shape=n, fill_value=constant_value)
         v_binary01 = np.concatenate((np.full(shape=n-1, fill_value=0), np.array([1])))
         v_binaryAB = np.concatenate((np.full(shape=n-1, fill_value=binary_A), np.array([binary_B])))
@@ -95,6 +95,16 @@ class TestPreprocessor:
         file_name = 'test.csvcsv'
         assert pre.get_file_type(file_name=file_name, debug=False) is None
 
+    def test_get_default_header(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        g5 = ['C0','C1','C2','C3','C4']
+        h5 = pre.get_default_header(n=5, prefix='C')
+        
+        assert (g5 == h5).all()
+
     def test_read_file_npy(self):
         
         n = 10
@@ -110,23 +120,6 @@ class TestPreprocessor:
         os.remove(file_name)
         
         assert res is not None and len(res['header']) == m and len(res['x']) == n
-        
-    def test_read_file_feather(self):
-        
-        n = 10
-        m = 2
-        pre = preprocessor('none')
-        file_name = 'test.feather'
-        
-        header = self.create_header(m)
-        arr = self.create_binary_matrix(n,m)
-
-        feather.write_dataframe(pd.DataFrame(arr, columns=header), file_name)
-        res = pre.read_file(file_name, debug=False, has_header=True)
-        os.remove(file_name)
-        
-        assert res is not None and len(res['header']) == m and len(res['x']) == n
-        
         
     def test_read_file_feather(self):
         
@@ -192,6 +185,16 @@ class TestPreprocessor:
         
         assert res is None
         
+    def test_is_iterable_no(self):
+        
+        pre = preprocessor(missing_value='NULL')
+        assert not pre.is_iterable(3)
+        
+    def test_is_iterable_yes(self):
+        
+        pre = preprocessor(missing_value='NULL')
+        assert pre.is_iterable(np.array([1,2,3,4,5]))
+
     def test_is_numeric_yes(self):
         
         pre = preprocessor('none')
@@ -357,8 +360,8 @@ class TestPreprocessor:
         
         m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
         g_type = ['constant','binary','binary','categorical','count','continuous']
-        assert (m['type'].tolist() == g_type).all()
-        
+        assert m['type'].tolist() == g_type
+       
     def test_get_metadata_min(self):
         
         pre = preprocessor(missing_value= -999999)
@@ -369,10 +372,309 @@ class TestPreprocessor:
         header = obj['header']
         
         m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
-        min_count = np.min(x[:,np.where(header=='count')])
-        min_continuous = np.min(x[:,np.where(header=='continuous')[0][0]])
+        min_count = np.min((x[:,np.where(header=='count')[0][0]]).astype(int))
+        min_continuous = np.min((x[:,np.where(header=='continuous')[0][0]]).astype(float))
         g_min = [0,0,0,0,min_count, min_continuous]
         
-        assert (np.abs(g_min - m['min']) < threshold).all()
+        assert np.allclose(m['min'], g_min, atol=threshold)
+        
+    def test_get_metadata_max(self):
+        
+        pre = preprocessor(missing_value= -999999)
+        threshold = 1e-5
+        
+        obj = self.create_multimodal_object(n=1000)
+        x = obj['x']
+        header = obj['header']
+        
+        m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
+        max_count = np.max((x[:,np.where(header=='count')[0][0]]).astype(int))
+        max_continuous = np.max((x[:,np.where(header=='continuous')[0][0]]).astype(float))
+        g_min = [0,0,0,0,max_count, max_continuous]
+        
+        assert np.allclose(m['max'], g_min, atol=threshold)
+        
+    def test_get_metadata_zero(self):
+        
+        pre = preprocessor(missing_value= -999999)
+        
+        obj = self.create_multimodal_object(n=1000)
+        x = obj['x']
+        
+        m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
+        g_zero = ['helloworld','0','A','','','']
+        
+        assert (m['zero'] == g_zero).all()
+        
+    def test_get_metadata_one(self):
+        
+        pre = preprocessor(missing_value= -999999)
+        
+        obj = self.create_multimodal_object(n=1000)
+        x = obj['x']
+        
+        m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
+        g_one = ['','1','B','','','']
+        
+        assert (m['one'] == g_one).all()
+        
+    def test_get_metadata_unique(self):
+        
+        pre = preprocessor(missing_value= -999999)
+        
+        obj = self.create_multimodal_object(n=1000)
+        x = obj['x']
+        
+        m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
+        g_unique = ['','','','X,Y,Z','','']
+        
+        assert (m['unique'] == g_unique).all()
+        
+    def test_get_metadata_missing(self):
+        
+        missing_value = -999999
+        idx = 1
+        pre = preprocessor(missing_value= -999999)
+        
+        obj = self.create_multimodal_object(n=1000)
+        x = obj['x']
+        x[np.random.randint(low=0,high=len(x), size=len(x)),idx] = str(missing_value)
+        
+        m = pre.get_metadata(x, pre.get_default_header(x.shape[1]))
+        g_missing = [False, True, False, False, False, False]
+        
+        assert m['missing'].tolist() == g_missing
+        
+    def test_get_one_hot_encoding(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        label="var"
+        
+        x = np.array(['Y','X','X','Z','Y'])
+        res = pre.get_one_hot_encoding(x=x, label=label)
+        g_x_hot = np.array([(0,1,0),(1,0,0),(1,0,0),(0,0,1),(0,1,0)]) 
+        
+        assert (res['x'] == g_x_hot).all()
+        
+    def test_get_one_hot_encoding_missing(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        label="var"
+        
+        x = np.array(['Y','X','X',missing_value,'Y'])
+        res = pre.get_one_hot_encoding(x=x, label=label)
+        g_x_hot = np.array([(0,0,1),(0,1,0),(0,1,0),(1,0,0),(0,0,1)]) 
+        
+        assert (res['x'] == g_x_hot).all()
+
+    def test_scale(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        x = np.array([0,1,2,3,4,5,6,7,8,9,10])
+        g_s = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+        s = pre.scale(x)
+        
+        assert (s == g_s).all()
+        
+    def test_unscale(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        min_value=0
+        max_value=10
+        s = [0,0.1,0.2,0.3,0.4,1]
+        g = [0, 1, 2, 3, 4, 10]
+        x = pre.unscale(s, min_value, max_value)
+        
+        assert (x == g).all()
+
+    def test_get_missing_column(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        x1 = np.array([1,2,3,missing_value, 4])
+        g1 = np.array([0,0,0,1,0])
+        c1 = pre.get_missing_column(x1)
+        
+        assert (g1 == c1).all()
         
         
+    def test_get_na_idx_full(self):
+    
+        missing_value = 'NULL'
+        pre = preprocessor(missing_value=missing_value)
+        
+        x = np.array([4,5,2,5,3])
+        r_idx = pre.get_na_idx(x)
+        
+        assert len(r_idx) == 0
+        
+    def test_get_na_idx_missing_1(self):
+    
+        missing_value = 'NULL'
+        pre = preprocessor(missing_value=missing_value)
+        
+        x = np.array([4,5,missing_value,2,5,3])
+        r_idx = pre.get_na_idx(x)
+        
+        assert r_idx[0] == 2
+        
+    def test_get_na_idx_missing_2(self):
+    
+        missing_value = 'NULL'
+        pre = preprocessor(missing_value=missing_value)
+        
+        x = np.array(['hello','world','earth','tierra',missing_value,'blah','foo',missing_value])
+        g_idx = np.array([4,7])
+        r_idx = pre.get_na_idx(x)
+        
+        assert r_idx.sort() == g_idx.sort()
+        
+    def test_get_discretized_matrix_full(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        obj_f = self.create_multimodal_object(n=1000)
+        m = pre.get_metadata(obj_f['x'], pre.get_default_header(obj_f['x'].shape[1]))
+        
+        obj_d = pre.get_discretized_matrix(x=obj_f['x'], m=m, 
+                    header=obj_f['header'], require_missing=False)
+        
+        assert len(obj_d['header']) == 8
+
+    def test_get_discretized_matrix_missing_1(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        obj_f = self.create_multimodal_object(n=1000)
+        m = pre.get_metadata(obj_f['x'], pre.get_default_header(obj_f['x'].shape[1]))
+        
+        obj_d = pre.get_discretized_matrix(x=obj_f['x'], m=m, 
+                    header=obj_f['header'], require_missing=True)
+        
+        assert obj_d['x'].shape[1] == 14
+        
+    def test_get_discretized_matrix_missing_2(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        obj_f = self.create_multimodal_object(n=1000)
+        m = pre.get_metadata(obj_f['x'], pre.get_default_header(obj_f['x'].shape[1]))
+        
+        obj_d = pre.get_discretized_matrix(x=obj_f['x'], m=m, 
+                    header=obj_f['header'], require_missing=True)
+        
+        assert len(obj_d['header']) == 14
+                
+    def test_unravel_one_hot_encoding(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        unique_values = ['val1', 'val2', 'val3']
+        
+        s = np.array([[0,0,1], [0,0,1], [0,1,0], [1,0,0], [0,1,0]])
+        g = ['val3','val3','val2','val1','val2']
+        x = pre.unravel_one_hot_encoding(x=s, unique_values=unique_values)
+        
+        assert (x == g).all()
+        
+    def test_restore_matrix_1(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        header = ['col1','col2']
+        x = np.random.randint(low=0, high=2, size=(5,2)).astype(str)
+        v = np.full(shape=len(header), fill_value=False)
+        
+        m = pre.get_metadata(x=x, header=header)
+        obj_d = pre.get_discretized_matrix(x=x, m=m, 
+                header=header, require_missing=True)
+        obj_r = pre.restore_matrix(x=obj_d['x'], m=m, header=obj_d['header'])
+        
+        # check header
+        for i in range(len(header)):
+            v[i] = (header[i] == obj_r['header'][i])
+        
+        assert v.all()
+        
+    def test_restore_matrix_2(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        threshold = 1e-5
+        
+        header = ['col1','col2']
+        x = np.random.randint(low=0, high=2, size=(5,2)).astype(str)
+        v = np.full(shape=x.shape, fill_value=False)
+        
+        m = pre.get_metadata(x=x, header=header)
+        obj_d = pre.get_discretized_matrix(x=x, m=m, 
+                header=header, require_missing=True)
+        obj_r = pre.restore_matrix(x=obj_d['x'], m=m, header=obj_d['header'])
+        
+        for i in range(x.shape[0]):
+            for j in range(x.shape[1]):
+                if m[j]['type'] == 'count' or m[j]['type'] == 'continuous':
+                    if abs(float(x[i,j]) - float(obj_r['x'][i,j])) < threshold:
+                        v[i,j] = True
+                else:
+                    if x[i,j] == obj_r['x'][i,j]:
+                        v[i,j] = True
+        
+        assert v.all()
+   
+    def test_restore_matrix_3(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        
+        obj_f = self.create_multimodal_object(n=1000)
+        v = np.full(shape=len(obj_f['header']), fill_value=False)
+        
+        m = pre.get_metadata(obj_f['x'], obj_f['header'])
+        obj_d = pre.get_discretized_matrix(x=obj_f['x'], m=m, 
+                header=obj_f['header'], require_missing=True)
+        obj_r = pre.restore_matrix(x=obj_d['x'], m=m, header=obj_d['header'])
+        
+        # check header
+        for i in range(len(obj_f['header'])):
+            v[i] = obj_f['header'][i] == obj_r['header'][i]
+                
+        assert v.all()
+               
+    def test_restore_matrix_4(self):
+        
+        missing_value = -999999
+        pre = preprocessor(missing_value=missing_value)
+        threshold = 1e-5
+        
+        obj_f = self.create_multimodal_object(n=1000)
+        v = np.full(shape=obj_f['x'].shape, fill_value=False)
+        
+        m = pre.get_metadata(obj_f['x'], obj_f['header'])
+        obj_d = pre.get_discretized_matrix(x=obj_f['x'], m=m, 
+                header=obj_f['header'], require_missing=True)
+        obj_r = pre.restore_matrix(x=obj_d['x'], m=m, header=obj_d['header'])
+        
+        for i in range(obj_f['x'].shape[0]):
+            for j in range(obj_f['x'].shape[1]):
+                if m[j]['type'] == 'count' or m[j]['type'] == 'continuous':
+                    if abs(float(obj_f['x'][i,j]) - float(obj_r['x'][i,j])) < threshold:
+                        v[i,j] = True
+                else:
+                    if obj_f['x'][i,j] == obj_r['x'][i,j]:
+                        v[i,j] = True
+        
+        assert v.all()
