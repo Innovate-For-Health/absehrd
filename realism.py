@@ -6,7 +6,7 @@ from scipy.stats import norm
 import matplotlib.pyplot as plt
 
 # sehrd
-from preprocessor import preprocessor
+from preprocessor import Preprocessor
 from validator import Validator
 
 class MLP(torch.nn.Module):
@@ -479,7 +479,7 @@ class Realism(Validator):
         """
 
         # preprocess
-        pre = preprocessor(missing_value)
+        pre = Preprocessor(missing_value)
         met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
         obj_d_r_trn = pre.get_discretized_matrix(x=mat_f_r_trn,
                                                  m=met_f_r,
@@ -533,7 +533,7 @@ class Realism(Validator):
         """
 
         # preprocess
-        pre = preprocessor(missing_value)
+        pre = Preprocessor(missing_value)
         met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
         obj_d_r_trn = pre.get_discretized_matrix(x=mat_f_r_trn,
                                                  m=met_f_r,

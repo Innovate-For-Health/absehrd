@@ -6,7 +6,7 @@ from scipy.spatial.distance import cdist
 
 # sehrd modules
 from validator import Validator
-from corgan import corgan
+from corgan import Corgan
 from corgan import Discriminator
 
 class Privacy(Validator):
@@ -142,7 +142,7 @@ class Privacy(Validator):
 
         """
 
-        cor = corgan()
+        cor = Corgan()
 
         # evaluation set
         x_all = np.row_stack((r_tst,r_trn))
