@@ -668,9 +668,9 @@ class Realism(Validator):
 
         if analysis == 'feature_frequency':
             corr_trn = np.corrcoef(x=res['frq_r_trn'], y=res['frq_s_trn'])[0,1]
-            msg = msg + '\nFrequency correlation: ' + str(np.round(corr_trn, n_decimal))
+            msg = msg + '\nFrequency correlation (train): ' + str(np.round(corr_trn, n_decimal))
             corr_tst = np.corrcoef(x=res['frq_r_tst'], y=res['frq_s_tst'])[0,1]
-            msg = msg + '\nFrequency correlation: ' + str(np.round(corr_tst, n_decimal))
+            msg = msg + '\nFrequency correlation (test): ' + str(np.round(corr_tst, n_decimal))
 
         elif analysis == 'feature_effect':
 
