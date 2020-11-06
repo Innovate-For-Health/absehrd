@@ -720,7 +720,7 @@ class Preprocessor:
 
                 for i, val in enumerate(s_j):
                     if val == 1:
-                        c_j[i] = val['one']
+                        c_j[i] = ele['one']
 
                 c_j[idx_missing] = self.missing_value
 
