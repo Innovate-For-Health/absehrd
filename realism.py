@@ -645,7 +645,6 @@ class Realism(Validator):
             plt.xlabel('False positive rate', fontsize=fontsize)
             plt.ylabel('True positive rate', fontsize=fontsize)
 
-        plt.show()
         fig.savefig(file_pdf, bbox_inches='tight')
         return True
 
