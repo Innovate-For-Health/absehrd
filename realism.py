@@ -316,8 +316,8 @@ class Realism(Validator):
                                    do_gan_train=False, n_epoch=n_epoch,
                                    model_type=model_type, debug=debug)
 
-    def gan_train_test(self, r_trn, r_tst, s_all, col_names, outcome, n_epoch=5,
-                 model_type='mlp'):
+    def gan_train_test(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, header, outcome, n_epoch=5,
+                 model_type='lr'):
         """Conduct GAN-train and GAN-test validation framework.
 
         Parameters
@@ -343,6 +343,27 @@ class Realism(Validator):
             DESCRIPTION.
 
         """
+        
+        # preprocess
+        pre = Preprocessor(missing_value)
+        met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
+        obj_d_r_trn = pre.get_discretized_matrix(arr=mat_f_r_trn,
+                                                 meta=met_f_r,
+                                                 header=header,
+                                                 debug=False)
+        obj_d_r_tst = pre.get_discretized_matrix(arr=mat_f_r_tst,
+                                                 meta=met_f_r,
+                                                 header=header,
+                                                 debug=False)
+        obj_d_s = pre.get_discretized_matrix(arr=mat_f_s,
+                                                 meta=met_f_r,
+                                                 header=header,
+                                                 debug=False)
+        
+        # extract
+        r_trn = obj_d_r_trn['x']
+        r_tst = obj_d_r_tst['x']
+        s_all = obj_d_s['x']
 
         # split synthetic dataset
         frac_train = len(r_trn) / (len(r_trn) + len(r_tst))
@@ -480,19 +501,16 @@ class Realism(Validator):
 
         # preprocess
         pre = Preprocessor(missing_value)
-        met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
-        obj_d_r_trn = pre.get_discretized_matrix(x=mat_f_r_trn,
-                                                 m=met_f_r,
-                                                 header=header,
-                                                 debug=False)
-        obj_d_r_tst = pre.get_discretized_matrix(x=mat_f_r_tst,
-                                                 m=met_f_r,
-                                                 header=header,
-                                                 debug=False)
-        obj_d_s = pre.get_discretized_matrix(x=mat_f_s,
-                                                 m=met_f_r,
-                                                 header=header,
-                                                 debug=False)
+        met_f_r = pre.get_metadata(arr = mat_f_r_trn, header=header)
+        obj_d_r_trn = pre.get_discretized_matrix(arr=mat_f_r_trn,
+                                                 meta=met_f_r,
+                                                 header=header)
+        obj_d_r_tst = pre.get_discretized_matrix(arr=mat_f_r_tst,
+                                                 meta=met_f_r,
+                                                 header=header)
+        obj_d_s = pre.get_discretized_matrix(arr=mat_f_s,
+                                                 meta=met_f_r,
+                                                 header=header)
 
         # compare r_trn and r_tst with s
         res_trn = self.validate_univariate(arr_r=obj_d_r_trn['x'],
@@ -535,16 +553,16 @@ class Realism(Validator):
         # preprocess
         pre = Preprocessor(missing_value)
         met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
-        obj_d_r_trn = pre.get_discretized_matrix(x=mat_f_r_trn,
-                                                 m=met_f_r,
+        obj_d_r_trn = pre.get_discretized_matrix(arr=mat_f_r_trn,
+                                                 meta=met_f_r,
                                                  header=header,
                                                  debug=False)
-        obj_d_r_tst = pre.get_discretized_matrix(x=mat_f_r_tst,
-                                                 m=met_f_r,
+        obj_d_r_tst = pre.get_discretized_matrix(arr=mat_f_r_tst,
+                                                 meta=met_f_r,
                                                  header=header,
                                                  debug=False)
-        obj_d_s = pre.get_discretized_matrix(x=mat_f_s,
-                                                 m=met_f_r,
+        obj_d_s = pre.get_discretized_matrix(arr=mat_f_s,
+                                                 meta=met_f_r,
                                                  header=header,
                                                  debug=False)
 
@@ -650,23 +668,23 @@ class Realism(Validator):
 
         """
 
-        msg = ''
+        msg = '\nSummary:'
 
         if analysis == 'feature_frequency':
             corr_trn = np.corrcoef(x=res['frq_r_trn'], y=res['frq_s_trn'])[0,1]
-            msg = 'Frequency correlation: ' + str(np.round(corr_trn, n_decimal))
+            msg = msg + '\nFrequency correlation: ' + str(np.round(corr_trn, n_decimal))
             corr_tst = np.corrcoef(x=res['frq_r_tst'], y=res['frq_s_tst'])[0,1]
             msg = msg + '\nFrequency correlation: ' + str(np.round(corr_tst, n_decimal))
 
         elif analysis == 'feature_effect':
 
             corr_trn = np.corrcoef(x=res['effect_r_trn'], y=res['effect_s_trn'])[0,1]
-            msg = 'Importance correlation: ' + str(np.round(corr_trn, n_decimal))
+            msg = msg + '\nImportance correlation: ' + str(np.round(corr_trn, n_decimal))
             corr_tst = np.corrcoef(x=res['effect_r_tst'], y=res['effect_s_tst'])[0,1]
             msg = msg + '\nImportance correlation: ' + str(np.round(corr_tst, n_decimal))
 
         elif analysis == 'gan_train_test':
-            msg = 'Realism assessment: ' + \
+            msg = msg + '\nRealism assessment: ' + \
                     '\n  > Real AUC: ' + \
                     str(np.round(res['gan_real']['auc'], n_decimal)) + \
                     '\n  > GAN-train AUC: ' + \
