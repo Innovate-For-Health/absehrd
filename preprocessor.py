@@ -719,7 +719,7 @@ class Preprocessor:
                 c_j = np.full(shape=len(arr), fill_value=ele['zero'], dtype='O')
 
                 for i, val in enumerate(s_j):
-                    if val == 1:
+                    if np.round(val) == 1:
                         c_j[i] = ele['one']
 
                 c_j[idx_missing] = self.missing_value
