@@ -552,19 +552,16 @@ class Realism(Validator):
 
         # preprocess
         pre = Preprocessor(missing_value)
-        met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
+        met_f_r = pre.get_metadata(arr = mat_f_r_trn, header=header)
         obj_d_r_trn = pre.get_discretized_matrix(arr=mat_f_r_trn,
                                                  meta=met_f_r,
-                                                 header=header,
-                                                 debug=False)
+                                                 header=header)
         obj_d_r_tst = pre.get_discretized_matrix(arr=mat_f_r_tst,
                                                  meta=met_f_r,
-                                                 header=header,
-                                                 debug=False)
+                                                 header=header)
         obj_d_s = pre.get_discretized_matrix(arr=mat_f_s,
                                                  meta=met_f_r,
-                                                 header=header,
-                                                 debug=False)
+                                                 header=header)
 
         # compare r_trn and r_tst with s
         res_trn = self.validate_effect(arr_r=obj_d_r_trn['x'],
