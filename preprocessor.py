@@ -10,20 +10,18 @@ class Preprocessor:
         self.missing_value=missing_value
         self.delim = '__'
 
-    def get_file_type(self, file_name, debug=False):
+    def get_file_type(self, file_name):
         """Determine the type of file.
 
         Parameters
         ----------
-        file_name : TYPE
-            DESCRIPTION.
-        debug : TYPE, optional
-            DESCRIPTION. The default is False.
+        file_name : str
+            Name of the file.
 
         Returns
         -------
-        file_type : TYPE
-            DESCRIPTION.
+        file_type : str
+            Standardized suffix of file type.
 
         """
 
@@ -40,9 +38,6 @@ class Preprocessor:
         else:
             file_type = None
 
-        if debug:
-            print(file_type)
-
         return file_type
 
     def get_default_header(self, n_col, prefix='C'):
@@ -50,15 +45,15 @@ class Preprocessor:
 
         Parameters
         ----------
-        n : TYPE
-            DESCRIPTION.
-        prefix : TYPE, optional
-            DESCRIPTION. The default is 'C'.
+        n_col : int
+            Number of columns for header.
+        prefix : str, optional
+            Prefix for elements of the header. The default is 'C'.
 
         Returns
         -------
-        header : TYPE
-            DESCRIPTION.
+        header : array_like
+            Array with column names.
 
         """
 
@@ -69,22 +64,20 @@ class Preprocessor:
 
         return header
 
-    def read_file(self, file_name, has_header=True, debug=False):
+    def read_file(self, file_name, has_header=True):
         """Read a matrix of data from file.
 
         Parameters
         ----------
-        file_name : TYPE
-            DESCRIPTION.
-        has_header : TYPE, optional
-            DESCRIPTION. The default is True.
-        debug : TYPE, optional
-            DESCRIPTION. The default is False.
+        file_name : str
+            Full path and name of the file.
+        has_header : bool, optional
+            True if the file has a header; false otherwise. The default is True.
 
         Returns
         -------
         dict
-            DESCRIPTION.
+            Dictionary object containing the matrix ('x') and header ('header').
 
         """
 
@@ -95,24 +88,18 @@ class Preprocessor:
             return None
 
         if self.get_file_type(file_name) == 'npy':
-            if debug:
-                print('Reading npy file ', file_name, '...')
             arr = np.load(file_name)
             if has_header:
                 header = arr[0,:]
                 arr = arr[1:len(arr),:]
 
         elif self.get_file_type(file_name) == 'feather':
-            if debug:
-                print('Reading feather file ', file_name, '...')
             pd_df = feather.read_dataframe(file_name)
             arr = pd_df.to_numpy()
             if has_header:
                 header = pd_df.columns
 
         elif self.get_file_type(file_name) == 'csv' or self.get_file_type(file_name) == 'tsv':
-            if debug:
-                print('Reading ' + self.get_file_type(file_name) + ' file ', file_name, '...')
 
             arr = []
             if has_header:
@@ -131,14 +118,7 @@ class Preprocessor:
                 arr = np.loadtxt(file_name, dtype=str, delimiter=delimiter)
 
         else:
-            if debug:
-                print('Unknown file type for file', file_name)
-                print("Returning None")
             return None
-
-        if debug:
-            print('  Number of samples:', arr.shape[0])
-            print('  Number of features:', arr.shape[1])
 
         if len(header) == 0:
             header = self.get_default_header(arr.shape[1])
@@ -150,13 +130,13 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
+        obj : object
+            Object to analyze.
 
         Returns
         -------
         bool
-            DESCRIPTION.
+            True if object is iterable; False otherwise.
 
         """
 
@@ -172,13 +152,13 @@ class Preprocessor:
 
         Parameters
         ----------
-        arr : TYPE
-            DESCRIPTION.
+        arr : array_like
+            Array of any type.
 
         Returns
         -------
         bool
-            DESCRIPTION.
+            True if the array contains numbers; False otherwise.
 
         """
 
@@ -201,13 +181,13 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
+        arr : array_like
+            Array that may or may not contain missing values.
 
         Returns
         -------
-        d : TYPE
-            DESCRIPTION.
+        d : array_like
+            Array with missing value elements removed.
 
         """
 
@@ -232,12 +212,13 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
+        arr : array_like
+            Array with two unique values; may contain missing values.
 
         Returns
         -------
-        None.
+        str
+            Value the occurs less frequently in the array.
 
         """
 
@@ -254,34 +235,41 @@ class Preprocessor:
 
         if val_0 <= val_1:
             return uniq_d[0]
+
         return uniq_d[1]
 
     def get_variable_type(self, arr, label=None, custom_categorical=(),
                                custom_continuous=(), custom_count=(),
+                               custom_constant=(),
                                max_uniq=10, max_diff=1e-10):
         """Guess at the type of variable.
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
-        label : TYPE, optional
-            DESCRIPTION. The default is None.
-        custom_categorical : TYPE, optional
-            DESCRIPTION. The default is ().
-        custom_continuous : TYPE, optional
-            DESCRIPTION. The default is ().
-        custom_count : TYPE, optional
-            DESCRIPTION. The default is ().
-        max_uniq : TYPE, optional
-            DESCRIPTION. The default is 10.
-        max_diff : TYPE, optional
-            DESCRIPTION. The default is 1e-10.
+        arr : array_like
+            Array of values of unknown type.
+        label : str, optional
+            Column label of the array. The default is None.
+        custom_categorical : array_like, optional
+            Array of column labels that are categorical. The default is ().
+        custom_continuous : array_like, optional
+            Array of column labels that are continuous. The default is ().
+        custom_count : array_like, optional
+            Array of column labels that are count. The default is ().
+        custom_constant : array_like, optional
+            Array of column labels that are constant. The default is ().
+        max_uniq : int, optional
+            Maximum number of unique values to be considered
+            categorical. The default is 10.
+        max_diff : float, optional
+            Maximum threshold difference between rounded value and value to 
+            be considered count. The default is 1e-10.
 
         Returns
         -------
         str
-            DESCRIPTION.
+            Type of variable.  Options are 'constant', 'categorical', 
+            'count', 'continuous'.
 
         """
 
@@ -318,15 +306,15 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
-        header : TYPE
-            DESCRIPTION.
+        arr : array_like
+            2D array for which to calculate metadata.
+        header : array_like
+            Array of column labels for the array.
 
         Returns
         -------
-        m : TYPE
-            DESCRIPTION.
+        meta : array_like
+            Metadata matrix containing one row of information per column.
 
         """
 
@@ -368,19 +356,20 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
-        label : TYPE
-            DESCRIPTION.
-        unique_values : TYPE, optional
-            DESCRIPTION. The default is None.
-        add_missing_col : TYPE, optional
-            DESCRIPTION. The default is False.
+        arr : array_like
+            Array of values.
+        label : str
+            Column label of the feature contained in the array.
+        unique_values : array_like, optional
+            Custom array of unique values over which to create the encoding. The default is None.
+        add_missing_col : bool, optional
+            True if missing column is required; False otherwise. The default is False.
 
         Returns
         -------
         dict
-            DESCRIPTION.
+            Contains the matrix ('x') of one hot encoded data and 
+            corresponding header ('header').
 
         """
 
@@ -412,13 +401,13 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
+        arr : array_like
+            Numeric array to scale.
 
         Returns
         -------
-        s : TYPE
-            DESCRIPTION.
+        arr_s : array_like
+            Scaled version of the array.
 
         """
 
@@ -440,17 +429,17 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
-        min_value : TYPE
-            DESCRIPTION.
-        max_value : TYPE
-            DESCRIPTION.
+        arr : array_like
+            Array of scaled numeric values.
+        min_value : float
+            Minimum value in the original, unscaled array.
+        max_value : float
+            Maximum value in the original, unscaled array.
 
         Returns
         -------
-        c : TYPE
-            DESCRIPTION.
+        arr_c : array_like
+            Restored, unscaled array.
 
         """
 
@@ -465,13 +454,14 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
+        arr : array_like
+            Array of values which may or may not contain missing values.
 
         Returns
         -------
-        y : TYPE
-            DESCRIPTION.
+        arr_y : array_like
+            Binary array of same size as input array with 1 if 
+            corresponding array value is the missing_value and 0 otherwise.
 
         """
 
@@ -491,13 +481,13 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
+        arr : array_like
+            Array of values which may or may not contain missing values.
 
         Returns
         -------
-        idx : TYPE
-            DESCRIPTION.
+        idx : array_like
+            Array of integers representing the index of each missing value.
 
         """
 
@@ -515,27 +505,27 @@ class Preprocessor:
 
         return idx
 
-    def get_discretized_matrix(self, arr, meta, header, require_missing=True, debug=False):
+    def get_discretized_matrix(self, arr, meta, header, require_missing=True):
         """Convert a generic matrix into a representation where each element
         is scaled between 0 and 1.
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
-        m : TYPE
-            DESCRIPTION.
-        header : TYPE
-            DESCRIPTION.
-        require_missing : TYPE, optional
-            DESCRIPTION. The default is True.
-        debug : TYPE, optional
-            DESCRIPTION. The default is False.
+        arr : array_like
+            2D array of values of multiple types.
+        meta : array_like
+            2D matrix of metadata for each column.
+        header : array_like
+            Array of column labels.
+        require_missing : bool, optional
+            If True, require a missing column for each feature; 
+            False otherwise. The default is True.
 
         Returns
         -------
         dict
-            DESCRIPTION.
+            Constains the numeric version of the matrix ('x') and 
+            corresponding header ('header').
 
         """
 
@@ -619,9 +609,6 @@ class Preprocessor:
             else:
                 d_x = np.column_stack((d_x, s_j))
 
-            if debug:
-                print('Dimensions of matrix are now', d_x.shape)
-
         return {'x':d_x, 'header':d_header}
 
     def unravel_one_hot_encoding(self, arr, unique_values):
@@ -630,15 +617,15 @@ class Preprocessor:
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
-        unique_values : TYPE
-            DESCRIPTION.
+        arr : array_like
+            2D array of one-hot encoded data.
+        unique_values : array_like
+            Unique values corresponding to each column of the array. The default is None.
 
         Returns
         -------
-        c : TYPE
-            DESCRIPTION.
+        arr_c : array_like
+            1D array representing categorical feature format from one-hot encoded matrix.
 
         """
 
@@ -657,29 +644,30 @@ class Preprocessor:
 
         return arr_c
 
-    def restore_matrix(self, arr, met, header):
+    def restore_matrix(self, arr, meta, header):
         """Restore scaled, numeric matrix to its original format.
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
-        m : TYPE
-            DESCRIPTION.
-        header : TYPE
-            DESCRIPTION.
+        arr : array_like
+            Discretized version of the array.
+        meta : array_like
+            2D matrix of metadata for each column.
+        header : array_like
+            Array of column labels for the discretized array.
 
         Returns
         -------
         dict
-            DESCRIPTION.
+            Contains the original version of the matrix ('x') and 
+            corresponding header ('header').
 
         """
 
         c_prime = []
         variable_names = []
         variable_values = []
-        header_prime = met['label']
+        header_prime = meta['label']
 
         for i, ele in enumerate(header):
 
@@ -691,7 +679,7 @@ class Preprocessor:
             else:
                 variable_values = np.append(variable_values, '')
 
-        for j, ele in enumerate(met):
+        for j, ele in enumerate(meta):
 
             c_j = []
             idx_missing = []

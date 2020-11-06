@@ -1,21 +1,7 @@
 import pickle
 
 class Validator:
-    """
-    Ancestor class for all synthetic data validators.
-
-    Methods
-    -------
-    save_obj(obj, file_name)
-        Save an object in the pickle format.
-    load_obj(file_name)
-        Load an object from the pickle format.
-    scale(x)
-        Scale a numeric vector between 0 and 1.
-    plot(res, analysis, file_pdf)
-        Plot a result in a pdf file.
-    summarize(res, analysis, n_decimal=2)
-        Summarize a result in a string.
+    """Ancestor class for all synthetic data validators.
     """
 
     def save_obj(self, obj, file_name):

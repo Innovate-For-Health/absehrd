@@ -30,8 +30,8 @@ class Dataset:
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        array_like
+            Array of data.
 
         """
         return self.data
@@ -41,24 +41,24 @@ class Dataset:
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        int
+            Number of rows in the dataset.
 
         """
         return len(self.data)
 
     def __getitem__(self, idx):
         """Return the sample in the dataset at a given index.
-        
+
         Parameters
         ----------
         idx : int
             Index of data sample
-        
+
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        Tensor
+            Row of the dataset as a pytorch Tensor.
         """
 
         if torch.is_tensor(idx):
@@ -72,9 +72,9 @@ class Dataset:
 class Autoencoder(nn.Module):
     """Autoencoder model for translating the output of the generator.
     """
-    
+
     def __init__(self, feature_size):
-        super(Autoencoder, self).__init__()
+        super().__init__()
         self.encoder = nn.Sequential(
             nn.Linear(feature_size, 128),
             nn.Tanh())
@@ -85,13 +85,13 @@ class Autoencoder(nn.Module):
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
+        x : array_like
+            Input array to the autoencoder.
 
         Returns
         -------
-        x : TYPE
-            DESCRIPTION.
+        array_like
+            Output array from the autoencoder.
 
         """
         x = self.encoder(x)
@@ -103,32 +103,48 @@ class Autoencoder(nn.Module):
 
         Parameters
         ----------
-        x : TYPE
-            DESCRIPTION.
+        x : array_like
+            Input Array to the decoder layer of the autoencoder.
 
         Returns
         -------
-        x : TYPE
-            DESCRIPTION.
+        array_like
+            Output array from the decoder layer of the autoencoder.
 
         """
         x = self.decoder(x)
         return x
 
 class Generator(nn.Module):
+    """ Generator model for generative adversarial network of Cor-GAN.
+    """
 
     def __init__(self, latent_dim):
-        super(Generator, self).__init__()
-        self.genDim = 128
-        self.linear1 = nn.Linear(latent_dim, self.genDim)
-        self.bn1 = nn.BatchNorm1d(self.genDim, eps=0.001, momentum=0.01)
+        super().__init__()
+        self.gen_dim = 128
+        self.linear1 = nn.Linear(latent_dim, self.gen_dim)
+        self.bn1 = nn.BatchNorm1d(self.gen_dim, eps=0.001, momentum=0.01)
         self.activation1 = nn.ReLU()
-        self.linear2 = nn.Linear(latent_dim, self.genDim)
-        self.bn2 = nn.BatchNorm1d(self.genDim, eps=0.001, momentum=0.01)
+        self.linear2 = nn.Linear(latent_dim, self.gen_dim)
+        self.bn2 = nn.BatchNorm1d(self.gen_dim, eps=0.001, momentum=0.01)
         self.activation2 = nn.Tanh()
         self.latent_dim=latent_dim
 
     def forward(self, x):
+        """ Get output from generator model.
+
+        Parameters
+        ----------
+        x : array_like
+            Input array to the generator.
+
+        Returns
+        -------
+        array_like
+            Output array from the generator.
+
+        """
+
         # Layer 1
         residual = x
         temp = self.activation1(self.bn1(self.linear1(x)))
@@ -140,70 +156,121 @@ class Generator(nn.Module):
         return out2
 
 class Discriminator(nn.Module):
+    """ Discriminator model for generative adversarial network of Cor-GAN.
+    """
 
     def __init__(self, minibatch_averaging, feature_size):
-        super(Discriminator, self).__init__()
+        super().__init__()
         # Discriminator's parameters
-        self.disDim = 256
+        self.dis_dim = 256
         # The minibatch averaging setup
         ma_coef = 1
         if minibatch_averaging:
             ma_coef = ma_coef * 2
         self.model = nn.Sequential(
-            nn.Linear(ma_coef * feature_size, self.disDim),
+            nn.Linear(ma_coef * feature_size, self.dis_dim),
             nn.ReLU(True),
-            nn.Linear(self.disDim, int(self.disDim)),
+            nn.Linear(self.dis_dim, int(self.dis_dim)),
             nn.ReLU(True),
-            nn.Linear(self.disDim, int(self.disDim)),
+            nn.Linear(self.dis_dim, int(self.dis_dim)),
             nn.ReLU(True),
-            nn.Linear(int(self.disDim), 1)
+            nn.Linear(int(self.dis_dim), 1)
         )
         self.minibatch_averaging = minibatch_averaging
         self.feature_size=feature_size
 
     def forward(self, x):
+        """ Get output from discriminator model.
+
+        Parameters
+        ----------
+        x : array_like
+            Input array to the discriminator.
+
+        Returns
+        -------
+        array_like
+            Input array from the discriminator.
+
+        """
+
         if self.minibatch_averaging:
             x_mean = torch.mean(x, 0).repeat(x.shape[0], 1)
             x = torch.cat((x, x_mean), 1)
         output = self.model(x)
         return output
 
-class corgan(Synthesizer):
-
-    def generator_loss(self, y_fake, y_true, epsilon = 1e-12):
-        return -0.5 * torch.mean(torch.log(y_fake + epsilon))
+class Corgan(Synthesizer):
+    """ Cor-GAN: generative advesarial network plus autoencoder for
+        generating synthetic binary data.
+    """
 
     def autoencoder_loss(self, x_output, y_target, epsilon = 1e-12):
+        """Calculate loss function for autoencoder model.
+
+        Parameters
+        ----------
+        x_output : array_like
+            Output from the autoencoder.
+        y_target : array_like
+            Input to the autoencoder.
+        epsilon : float, optional
+            Buffer value to avoid take log of 0. The default is 1e-12.
+
+        Returns
+        -------
+        loss : TYPE
+            DESCRIPTION.
+
+        """
         term = y_target * torch.log(x_output + epsilon) + \
             (1. - y_target) * torch.log(1. - x_output + epsilon)
         loss = torch.mean(-torch.sum(term, 1), 0)
         return loss
 
-    def discriminator_loss(self, outputs, labels):
-        loss = torch.mean((1 - labels) * outputs) - torch.mean(labels * outputs)
-        return loss
-
     def discriminator_accuracy(self, predicted, y_true):
+        """Calculate accuracy of the discriminator model.
+
+        Parameters
+        ----------
+        predicted : array_like
+            Array of predicted values output by the discriminator.
+        y_true : array_like
+            Array of actual values for the corresponding predicted values.
+
+        Returns
+        -------
+        accuracy : float
+            Accuracy for the corresponding predicted and true values.
+
+        """
         total = y_true.size(0)
         correct = (torch.abs(predicted - y_true) <= 0.5).sum().item()
         accuracy = 100.0 * correct / total
         return accuracy
 
-    def sample_transform(self, sample):
-        sample[sample >= 0.5] = 1
-        sample[sample < 0.5] = 0
-        return sample
+    def weights_init(self, m_layer):
+        """Initialize weights of a neural network layer.
 
-    def weights_init(self, m):
-        classname = m.__class__.__name__
+        Parameters
+        ----------
+        m_layer : torch.nn.Module
+            pytorch layer of a neural network.
+
+        Returns
+        -------
+        None.
+
+        """
+        classname = m_layer.__class__.__name__
         if classname.find('Conv') != -1:
-            nn.init.normal_(m.weight.data, 0.0, 0.02)
+            nn.init.normal_(m_layer.weight.data, 0.0, 0.02)
         elif classname.find('BatchNorm') != -1:
-            nn.init.normal_(m.weight.data, 1.0, 0.02)
-            nn.init.constant_(m.bias.data, 0)
-        if type(m) == nn.Linear:
-            torch.nn.init.xavier_uniform_(m.weight)
-            m.bias.data.fill_(0.01)
+            nn.init.normal_(m_layer.weight.data, 1.0, 0.02)
+            nn.init.constant_(m_layer.bias.data, 0)
+        if isinstance(m_layer, nn.Linear):
+            torch.nn.init.xavier_uniform_(m_layer.weight)
+            m_layer.bias.data.fill_(0.01)
 
     def train(self, x,
               n_cpu=1,
@@ -226,6 +293,60 @@ class corgan(Synthesizer):
               path_checkpoint='corgan_ckpts',
               prefix_checkpoint='ckpt',
               debug=False):
+        """Train the Cor-GAN model.
+
+        Parameters
+        ----------
+        x : array_like
+            2D array of data to train the generator.
+        n_cpu : int
+            Number of CPUs to use for training.
+        n_epochs_pretrain : int
+            Number of epochs to use during training of the autoencoder.
+        n_epochs : int
+            Number of epochs to use during training of the GAN.
+        frac_trn : float
+            Fraction of data to use for training; remaining used validation
+            during the training procedure.
+        batch_size : int
+            DESCRIPTION.
+        sample_interval : TYPE
+            DESCRIPTION.
+        latent_dim : TYPE
+            DESCRIPTION.
+        lr : TYPE
+            DESCRIPTION.
+        b1 : TYPE
+            DESCRIPTION.
+        b2 : TYPE
+            DESCRIPTION.
+        weight_decay : TYPE
+            DESCRIPTION.
+        n_iter_D : TYPE
+            DESCRIPTION.
+        minibatch_averaging : TYPE
+            DESCRIPTION.
+        clamp_lower : TYPE
+            DESCRIPTION.
+        clamp_upper : TYPE
+            DESCRIPTION.
+        epoch_time_show : TYPE
+            DESCRIPTION.
+        epoch_save_model_freq : TYPE
+            DESCRIPTION.
+        path_checkpoint : TYPE
+            DESCRIPTION.
+        prefix_checkpoint : TYPE
+            DESCRIPTION.
+        debug : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        """
 
         # train and test split
         idx = np.random.permutation(len(x))
@@ -245,29 +366,29 @@ class corgan(Synthesizer):
 
         # Train data loader
         dataset_train_object = Dataset(data=x_trn, transform=False)
-        samplerRandom = torch.utils.data.sampler.RandomSampler(data_source=dataset_train_object,
+        sampler_random = torch.utils.data.sampler.RandomSampler(data_source=dataset_train_object,
                                                                replacement=True)
         d_trn = DataLoader(dataset_train_object, batch_size=batch_size,
                                       shuffle=False, num_workers=0,
-                                      drop_last=True, sampler=samplerRandom)
+                                      drop_last=True, sampler=sampler_random)
 
         # Test data loader
         dataset_test_object = Dataset(data=x_tst, transform=False)
-        samplerRandom = torch.utils.data.sampler.RandomSampler(data_source=dataset_test_object,
+        sampler_random = torch.utils.data.sampler.RandomSampler(data_source=dataset_test_object,
                                                                replacement=True)
         d_tst = DataLoader(dataset_test_object, batch_size=batch_size,
                                      shuffle=False, num_workers=0,
-                                     drop_last=True, sampler=samplerRandom)
+                                     drop_last=True, sampler=sampler_random)
 
         # Initialize generator and discriminator
-        generatorModel = Generator(latent_dim=latent_dim)
-        discriminatorModel = Discriminator(minibatch_averaging=minibatch_averaging,
+        generator_model = Generator(latent_dim=latent_dim)
+        discriminator_model = Discriminator(minibatch_averaging=minibatch_averaging,
                                            feature_size=x.shape[1])
-        autoencoderModel = Autoencoder(feature_size=x.shape[1])
-        autoencoderDecoder = autoencoderModel.decoder
+        autoencoder_model = Autoencoder(feature_size=x.shape[1])
+        autoencoder_decoder = autoencoder_model.decoder
 
-        # Define cuda Tensors
-        Tensor = torch.FloatTensor
+        # Define cuda tensors
+        tensor_obj = torch.FloatTensor
         one = torch.tensor(1, dtype=torch.float)
         mone = one * -1
 
@@ -275,42 +396,42 @@ class corgan(Synthesizer):
             n_cpu = min(multiprocessing.cpu_count(), n_cpu)
             if debug:
                 print("Let's use", n_cpu, "CPUs!")
-            generatorModel = nn.DataParallel(generatorModel, list(range(n_cpu)))
-            discriminatorModel = nn.DataParallel(discriminatorModel, list(range(n_cpu)))
-            autoencoderModel = nn.DataParallel(autoencoderModel, list(range(n_cpu)))
-            autoencoderDecoder = nn.DataParallel(autoencoderDecoder, list(range(n_cpu)))
+            generator_model = nn.DataParallel(generator_model, list(range(n_cpu)))
+            discriminator_model = nn.DataParallel(discriminator_model, list(range(n_cpu)))
+            autoencoder_model = nn.DataParallel(autoencoder_model, list(range(n_cpu)))
+            autoencoder_decoder = nn.DataParallel(autoencoder_decoder, list(range(n_cpu)))
 
         # Weight initialization
-        generatorModel.apply(self.weights_init)
-        discriminatorModel.apply(self.weights_init)
-        autoencoderModel.apply(self.weights_init)
+        generator_model.apply(self.weights_init)
+        discriminator_model.apply(self.weights_init)
+        autoencoder_model.apply(self.weights_init)
 
         # Optimizers
-        g_params = [{'params': generatorModel.parameters()},
-                    {'params': autoencoderDecoder.parameters(), 'lr': 1e-4}]
-        optimizer_G = torch.optim.Adam(g_params, lr=lr, betas=(b1, b2), weight_decay=weight_decay)
-        optimizer_D = torch.optim.Adam(discriminatorModel.parameters(), lr=lr, betas=(b1, b2),
+        g_params = [{'params': generator_model.parameters()},
+                    {'params': autoencoder_decoder.parameters(), 'lr': 1e-4}]
+        optimizer_g = torch.optim.Adam(g_params, lr=lr, betas=(b1, b2), weight_decay=weight_decay)
+        optimizer_d = torch.optim.Adam(discriminator_model.parameters(), lr=lr, betas=(b1, b2),
                                        weight_decay=weight_decay)
-        optimizer_A = torch.optim.Adam(autoencoderModel.parameters(), lr=lr, betas=(b1, b2),
+        optimizer_a = torch.optim.Adam(autoencoder_model.parameters(), lr=lr, betas=(b1, b2),
                                        weight_decay=weight_decay)
 
         for epoch_pre in range(n_epochs_pretrain):
             for i, samples in enumerate(d_trn):
 
                 # Configure input
-                real_samples = Variable(samples.type(Tensor))
+                real_samples = Variable(samples.type(tensor_obj))
 
                 # Generate a batch of images
-                recons_samples = autoencoderModel(real_samples)
+                recons_samples = autoencoder_model(real_samples)
 
                 # Loss measures generator's ability to fool the discriminator
                 a_loss = self.autoencoder_loss(recons_samples, real_samples)
 
                 # # Reset gradients
-                optimizer_A.zero_grad()
+                optimizer_a.zero_grad()
 
                 a_loss.backward()
-                optimizer_A.step()
+                optimizer_a.step()
 
                 if debug:
                     batches_done = epoch_pre * len(x_trn) + i
@@ -326,35 +447,35 @@ class corgan(Synthesizer):
             for i, samples in enumerate(d_trn):
 
                 # Adversarial ground truths
-                valid = Variable(Tensor(samples.shape[0]).fill_(1.0),
+                valid = Variable(tensor_obj(samples.shape[0]).fill_(1.0),
                                  requires_grad=False)
-                fake = Variable(Tensor(samples.shape[0]).fill_(0.0),
+                fake = Variable(tensor_obj(samples.shape[0]).fill_(0.0),
                                 requires_grad=False)
 
                 # Configure input
-                real_samples = Variable(samples.type(Tensor))
+                real_samples = Variable(samples.type(tensor_obj))
 
                 # Sample noise as generator input
-                z = torch.randn(samples.shape[0], latent_dim)
+                arr_z = torch.randn(samples.shape[0], latent_dim)
 
                 # reset requires_grad
-                for p in discriminatorModel.parameters():
-                    p.requires_grad = False
+                for param in discriminator_model.parameters():
+                    param.requires_grad = False
 
                 # Zero grads
-                optimizer_G.zero_grad()
+                optimizer_g.zero_grad()
 
                 # Generate a batch of images
-                fake_samples = generatorModel(z)
+                fake_samples = generator_model(arr_z)
 
                 # uncomment if there is no autoencoder
-                fake_samples = autoencoderDecoder(fake_samples)
+                fake_samples = autoencoder_decoder(fake_samples)
 
                 # Loss measures generator's ability to fool the discriminator
-                errG = torch.mean(discriminatorModel(fake_samples).view(-1))
-                errG.backward(mone)
+                err_g = torch.mean(discriminator_model(fake_samples).view(-1))
+                err_g.backward(mone)
 
-                optimizer_G.step()
+                optimizer_g.step()
                 gen_iterations += 1
 
                 # ---------------------
@@ -362,8 +483,8 @@ class corgan(Synthesizer):
                 # ---------------------
 
                 # reset requires_grad
-                for p in discriminatorModel.parameters():
-                    p.requires_grad = True
+                for param in discriminator_model.parameters():
+                    param.requires_grad = True
 
                 # train the discriminator n_iter_D times
                 j = 0
@@ -371,14 +492,14 @@ class corgan(Synthesizer):
                     j += 1
 
                     # clamp parameters to a cube
-                    for p in discriminatorModel.parameters():
-                        p.data.clamp_(clamp_lower, clamp_upper)
+                    for param in discriminator_model.parameters():
+                        param.data.clamp_(clamp_lower, clamp_upper)
 
                     # reset gradients of discriminator
-                    optimizer_D.zero_grad()
+                    optimizer_d.zero_grad()
 
-                    errD_real = torch.mean(discriminatorModel(real_samples).view(-1))
-                    errD_real.backward(mone)
+                    err_d_real = torch.mean(discriminator_model(real_samples).view(-1))
+                    err_d_real.backward(mone)
 
                     # Measure discriminator's ability to classify real from generated samples
                     # The detach() method constructs a new view on a tensor which is declared
@@ -386,43 +507,44 @@ class corgan(Synthesizer):
                     # operations, and therefore the subgraph involving this view is not recorded.
                     # Refer to http://www.bnikolic.co.uk/blog/pytorch-detach.html.
 
-                    errD_fake = torch.mean(discriminatorModel(fake_samples.detach()).view(-1))
-                    errD_fake.backward(one)
-                    errD = -(errD_real - errD_fake)
+                    err_d_fake = torch.mean(discriminator_model(fake_samples.detach()).view(-1))
+                    err_d_fake.backward(one)
+                    err_d = -(err_d_real - err_d_fake)
 
                     # Optimizer step
-                    optimizer_D.step()
+                    optimizer_d.step()
 
             with torch.no_grad():
 
                 # Variables
                 real_samples_test = next(iter(d_tst))
-                real_samples_test = Variable(real_samples_test.type(Tensor))
-                z = torch.randn(samples.shape[0], latent_dim)
+                real_samples_test = Variable(real_samples_test.type(tensor_obj))
+                arr_z = torch.randn(samples.shape[0], latent_dim)
 
                 # Generator
-                fake_samples_test_temp = generatorModel(z)
-                fake_samples_test = autoencoderDecoder(fake_samples_test_temp)
+                fake_samples_test_temp = generator_model(arr_z)
+                fake_samples_test = autoencoder_decoder(fake_samples_test_temp)
 
                 # Discriminator
                 # torch.sigmoid() is needed as the discriminator outputs are
                 #   logits without any sigmoid.
-                out_real_test = discriminatorModel(real_samples_test).view(-1)
+                out_real_test = discriminator_model(real_samples_test).view(-1)
                 accuracy_real_test = self.discriminator_accuracy(torch.sigmoid(out_real_test),
                                                                  valid)
 
-                out_fake_test = discriminatorModel(fake_samples_test.detach()).view(-1)
+                out_fake_test = discriminator_model(fake_samples_test.detach()).view(-1)
                 accuracy_fake_test = self.discriminator_accuracy(torch.sigmoid(out_fake_test), fake)
 
                 # Test autoencoder
-                reconst_samples_test = autoencoderModel(real_samples_test)
+                reconst_samples_test = autoencoder_model(real_samples_test)
                 a_loss_test = self.autoencoder_loss(reconst_samples_test, real_samples_test)
 
             if debug:
                 print('TRAIN: [Epoch %d/%d] [Batch %d/%d] Loss_D: %.3f \
                       Loss_G: %.3f Loss_D_real: %.3f Loss_D_fake %.3f'
                       % (epoch + 1, n_epochs, i, len(x_trn),
-                         errD.item(), errG.item(), errD_real.item(), errD_fake.item()), flush=True)
+                         err_d.item(), err_g.item(), err_d_real.item(),
+                         err_d_fake.item()), flush=True)
                 print("TEST: [Epoch %d/%d] [Batch %d/%d] [A loss: %.2f] \
                       [real accuracy: %.2f] [fake accuracy: %.2f]"
                     % (epoch + 1, n_epochs, i, len(x_trn),
@@ -450,29 +572,44 @@ class corgan(Synthesizer):
 
                 torch.save({
                     'epoch': epoch + 1,
-                    'Generator_state_dict': generatorModel.state_dict(),
-                    'Discriminator_state_dict': discriminatorModel.state_dict(),
-                    'Autoencoder_state_dict': autoencoderModel.state_dict(),
-                    'Autoencoder_Decoder_state_dict': autoencoderDecoder.state_dict(),
-                    'optimizer_G_state_dict': optimizer_G.state_dict(),
-                    'optimizer_D_state_dict': optimizer_D.state_dict(),
-                    'optimizer_A_state_dict': optimizer_A.state_dict(),
+                    'Generator_state_dict': generator_model.state_dict(),
+                    'Discriminator_state_dict': discriminator_model.state_dict(),
+                    'Autoencoder_state_dict': autoencoder_model.state_dict(),
+                    'Autoencoder_Decoder_state_dict': autoencoder_decoder.state_dict(),
+                    'optimizer_G_state_dict': optimizer_g.state_dict(),
+                    'optimizer_D_state_dict': optimizer_d.state_dict(),
+                    'optimizer_A_state_dict': optimizer_a.state_dict(),
                     'parameter_dict':parameter_dict
                 }, os.path.join(path_checkpoint, prefix_checkpoint + \
                                 ".model_epoch_%d.pth" % (epoch + 1)))
 
         return {'epoch': epoch + 1,
-                    'Generator_state_dict': generatorModel.state_dict(),
-                    'Discriminator_state_dict': discriminatorModel.state_dict(),
-                    'Autoencoder_state_dict': autoencoderModel.state_dict(),
-                    'Autoencoder_Decoder_state_dict': autoencoderDecoder.state_dict(),
-                    'optimizer_G_state_dict': optimizer_G.state_dict(),
-                    'optimizer_D_state_dict': optimizer_D.state_dict(),
-                    'optimizer_A_state_dict': optimizer_A.state_dict(),
+                    'Generator_state_dict': generator_model.state_dict(),
+                    'Discriminator_state_dict': discriminator_model.state_dict(),
+                    'Autoencoder_state_dict': autoencoder_model.state_dict(),
+                    'Autoencoder_Decoder_state_dict': autoencoder_decoder.state_dict(),
+                    'optimizer_G_state_dict': optimizer_g.state_dict(),
+                    'optimizer_D_state_dict': optimizer_d.state_dict(),
+                    'optimizer_A_state_dict': optimizer_a.state_dict(),
                     'parameter_dict':parameter_dict}
 
     # model may be a file name to the checkpoint or a model dictionary object
     def generate(self, model, n_gen):
+        """Generate samples for the Cor-GAN generator.
+
+        Parameters
+        ----------
+        model : dict
+            Dictionary representing trained GAN model.
+        n_gen : int
+            Number of samples to generate.
+
+        Returns
+        -------
+        gen_samples : array_like
+            2D array of samples generated.
+
+        """
 
         device = torch.device("cpu")
 
@@ -488,24 +625,24 @@ class corgan(Synthesizer):
         n_cpu = checkpoint['parameter_dict']['n_cpu']
 
         # Setup model
-        generatorModel = Generator(latent_dim=latent_dim)
-        autoencoderModel = Autoencoder(feature_size=feature_size)
-        autoencoderDecoder = autoencoderModel.decoder
+        generator_model = Generator(latent_dim=latent_dim)
+        autoencoder_model = Autoencoder(feature_size=feature_size)
+        autoencoder_decoder = autoencoder_model.decoder
         if multiprocessing.cpu_count() > 1 and n_cpu > 1:
             n_cpu = min(multiprocessing.cpu_count(), n_cpu)
-            generatorModel = nn.DataParallel(generatorModel, list(range(n_cpu)))
-            autoencoderModel = nn.DataParallel(autoencoderModel, list(range(n_cpu)))
-            autoencoderDecoder = nn.DataParallel(autoencoderDecoder, list(range(n_cpu)))
+            generator_model = nn.DataParallel(generator_model, list(range(n_cpu)))
+            autoencoder_model = nn.DataParallel(autoencoder_model, list(range(n_cpu)))
+            autoencoder_decoder = nn.DataParallel(autoencoder_decoder, list(range(n_cpu)))
 
         # Load models
-        generatorModel.load_state_dict(checkpoint['Generator_state_dict'])
-        autoencoderModel.load_state_dict(checkpoint['Autoencoder_state_dict'])
-        autoencoderDecoder.load_state_dict(checkpoint['Autoencoder_Decoder_state_dict'])
+        generator_model.load_state_dict(checkpoint['Generator_state_dict'])
+        autoencoder_model.load_state_dict(checkpoint['Autoencoder_state_dict'])
+        autoencoder_decoder.load_state_dict(checkpoint['Autoencoder_Decoder_state_dict'])
 
         # insert weights [required]
-        generatorModel.eval()
-        autoencoderModel.eval()
-        autoencoderDecoder.eval()
+        generator_model.eval()
+        autoencoder_model.eval()
+        autoencoder_decoder.eval()
 
         # number of patches to generate
         gen_samples = np.zeros((n_gen, feature_size))
@@ -514,14 +651,11 @@ class corgan(Synthesizer):
         for i in range(n_batches):
 
             batch_size_itr = min(batch_size, n_gen - i * batch_size)
-            z = torch.randn(batch_size_itr, latent_dim, device=device)
-            gen_samples_tensor = generatorModel(z)
-            gen_samples_decoded = autoencoderDecoder(gen_samples_tensor)
+            arr_z = torch.randn(batch_size_itr, latent_dim, device=device)
+            gen_samples_tensor = generator_model(arr_z)
+            gen_samples_decoded = autoencoder_decoder(gen_samples_tensor)
 
             idx_max = min(i * batch_size + batch_size, n_gen)
             gen_samples[i * batch_size:idx_max, :] = gen_samples_decoded.cpu().data.numpy()
-
-            # Check to see if there is any nan
-            assert (gen_samples[i, :] != gen_samples[i, :]).any() == False
 
         return gen_samples

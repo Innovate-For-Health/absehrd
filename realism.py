@@ -38,6 +38,19 @@ class MLP(torch.nn.Module):
         self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, x):
+        """Get output from MLP.
+
+        Parameters
+        ----------
+        x : array_like
+            Input to the MLP.
+
+        Returns
+        -------
+        output : array_like
+            Output from the MLP.
+
+        """
         hidden = self.fc1(x)
         relu = self.relu(hidden)
         output = self.fc2(relu)
