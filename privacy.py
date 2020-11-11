@@ -233,7 +233,7 @@ class Privacy(Validator):
 
         return None
 
-    def plot(self, res, analysis, file_pdf):
+    def plot(self, res, analysis, file_pdf=None, n_decimal=2, fontsize=14):
         """Plot the results of a privacy validation analysis.
 
         Parameters
@@ -244,6 +244,10 @@ class Privacy(Validator):
             DESCRIPTION.
         file_pdf : TYPE
             DESCRIPTION.
+        n_decimal: int
+            Number of decimal places to print for numeric text.
+        fontsize: int
+            Size of text for plot title, axis labels, and legends.
 
         Returns
         -------
@@ -251,8 +255,6 @@ class Privacy(Validator):
             DESCRIPTION.
 
         """
-
-        fontsize = 6
 
         fig = plt.figure()
 
@@ -278,15 +280,18 @@ class Privacy(Validator):
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.xlabel('False positive rate', fontsize=fontsize)
             plt.ylabel('True positive rate', fontsize=fontsize)
-            plt.title('AUC = ' + res['auc'])
+            plt.title('AUC = ' + str(np.round(res['auc'], n_decimal)))
 
         else:
             msg = 'Warning: plot for analysis \'' + analysis + \
                 '\' not currently implemented in privacy::plot().'
             print(msg)
 
-        plt.show()
-        fig.savefig(file_pdf, bbox_inches='tight')
+        if file_pdf is None:
+            plt.show()
+        else:
+            fig.savefig(file_pdf, bbox_inches='tight')
+            
         return True
 
     def summarize(self, res, analysis, n_decimal=2):
@@ -313,18 +318,18 @@ class Privacy(Validator):
 
         if analysis == 'nearest_neighbors':
             msg = 'Mean nearest neighbor distance: ' + \
-                    '  > Real-real: ' + \
-                    str(np.round(np.mean(res['real']),n_decimal)) + \
-                    '  > Real-synthetic: ' + \
-                    str(np.round(np.mean(res['synth']),n_decimal)) + \
-                    '  > Real-probabilistic: ' + \
-                    str(np.round(np.mean(res['prob']),n_decimal)) + \
-                    '  > Real-random: ' + \
-                    str(np.round(np.mean(res['rand']),n_decimal))
+                    '\n  > Real-real: ' + \
+                    str(np.round(np.mean(res['real']), n_decimal)) + \
+                    '\n  > Real-synthetic: ' + \
+                    str(np.round(np.mean(res['synth']), n_decimal)) + \
+                    '\n  > Real-probabilistic: ' + \
+                    str(np.round(np.mean(res['prob']), n_decimal)) + \
+                    '\n  > Real-random: ' + \
+                    str(np.round(np.mean(res['rand']), n_decimal))
 
         elif analysis == 'membership_inference':
-            msg = 'AUC for auxiliary-synthetic: ' + res['auc_as'] + \
-                'AUC for real train-test: ' + res['auc_rr']
+            msg = 'AUC for membership inference attack: ' + \
+                str(np.round(res['auc'], n_decimal))
         else:
             msg = 'Warning: summary message for analysis \'' + analysis + \
             '\' not currently implemented in privacy::summarize().'
