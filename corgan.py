@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 # absehrd modules
 from synthesizer import Synthesizer
@@ -361,7 +362,7 @@ class Corgan(Synthesizer):
             if debug:
                 print('\nWarning: decreasing batch size from',
                       batch_size, 'to', min(len(x_tst), len(x_trn)),
-                      'due to small dataset.')
+                      'due to small dataset.', flush=True)
             batch_size = min(len(x_tst), len(x_trn))
 
         # Train data loader
@@ -392,10 +393,11 @@ class Corgan(Synthesizer):
         one = torch.tensor(1, dtype=torch.float)
         mone = one * -1
 
-        if multiprocessing.cpu_count() > 1 and n_cpu > 1:
-            n_cpu = min(multiprocessing.cpu_count(), n_cpu)
+        max_cpu = multiprocessing.cpu_count()
+        if max_cpu > 1 and n_cpu > 1:
+            n_cpu = min(max_cpu, n_cpu)
             if debug:
-                print("Let's use", n_cpu, "CPUs!")
+                print('Using', n_cpu, 'of', max_cpu, 'CPUs', flush=True)
             generator_model = nn.DataParallel(generator_model, list(range(n_cpu)))
             discriminator_model = nn.DataParallel(discriminator_model, list(range(n_cpu)))
             autoencoder_model = nn.DataParallel(autoencoder_model, list(range(n_cpu)))
@@ -415,7 +417,9 @@ class Corgan(Synthesizer):
         optimizer_a = torch.optim.Adam(autoencoder_model.parameters(), lr=lr, betas=(b1, b2),
                                        weight_decay=weight_decay)
 
-        for epoch_pre in range(n_epochs_pretrain):
+        timer_pre = tqdm(range(n_epochs_pretrain), desc='Pre-training', 
+                         unit=' epochs', disable=(not debug))
+        for epoch_pre in timer_pre:
             for i, samples in enumerate(d_trn):
 
                 # Configure input
@@ -436,14 +440,12 @@ class Corgan(Synthesizer):
                 if debug:
                     batches_done = epoch_pre * len(x_trn) + i
                     if batches_done % sample_interval == 0:
-                        print(
-                            "[Epoch %d/%d of pretraining] [Batch %d/%d] [A loss: %.3f]"
-                            % (epoch_pre + 1, n_epochs_pretrain, i, len(x), a_loss.item())
-                            , flush=True)
+                        msg = '[A loss: %.3f]' % (a_loss.item())
+                        timer_pre.set_postfix_str(s=msg, refresh=False)
 
         gen_iterations = 0
-        for epoch in range(n_epochs):
-            epoch_start = time.time()
+        timer = tqdm(range(n_epochs), desc='Training', unit=' epochs', disable=(not debug))
+        for epoch in timer:
             for i, samples in enumerate(d_trn):
 
                 # Adversarial ground truths
@@ -540,24 +542,14 @@ class Corgan(Synthesizer):
                 a_loss_test = self.autoencoder_loss(reconst_samples_test, real_samples_test)
 
             if debug:
-                print('TRAIN: [Epoch %d/%d] [Batch %d/%d] Loss_D: %.3f \
-                      Loss_G: %.3f Loss_D_real: %.3f Loss_D_fake %.3f'
-                      % (epoch + 1, n_epochs, i, len(x_trn),
-                         err_d.item(), err_g.item(), err_d_real.item(),
-                         err_d_fake.item()), flush=True)
-                print("TEST: [Epoch %d/%d] [Batch %d/%d] [A loss: %.2f] \
-                      [real accuracy: %.2f] [fake accuracy: %.2f]"
-                    % (epoch + 1, n_epochs, i, len(x_trn),
-                       a_loss_test.item(), accuracy_real_test,
-                       accuracy_fake_test), flush=True)
+                msg = 'TRAIN: [Loss_D: %.3f] [Loss_G: %.3f] [Loss_D_real: %.3f] [Loss_D_fake %.3f]' \
+                      % (err_d.item(), err_g.item(), err_d_real.item(),err_d_fake.item())
+                msg = msg+' | TEST: [A loss: %.2f] [real accuracy: %.2f] [fake accuracy: %.2f]' \
+                    % (a_loss_test.item(), accuracy_real_test, accuracy_fake_test)
+                timer.set_postfix_str(s=msg, refresh=False)
 
             # End of epoch
-            epoch_end = time.time()
-
-            if debug:
-                if epoch_time_show:
-                    print("It has been {0} seconds for this epoch".\
-                          format(round(epoch_end - epoch_start,2)), flush=True)
+            #epoch_end = time.time()
 
             parameter_dict = {'latent_dim':latent_dim,
                                   'feature_size':x.shape[1],
