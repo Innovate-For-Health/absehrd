@@ -420,7 +420,10 @@ class Realism(Validator):
                                     n_epoch=n_epoch,
                                     model_type=model_type)
 
-        return {'gan_real':res_gan_real, 'gan_train':res_gan_train, 'gan_test':res_gan_test}
+        return {'gan_real':res_gan_real, 
+                'gan_train':res_gan_train, 
+                'gan_test':res_gan_test,
+                'analysis':'gan_train_test'}
 
     def kl_divergence(self, pdf_p, pdf_q):
         """Kullback–Leibler divergence.
@@ -539,7 +542,8 @@ class Realism(Validator):
         # combine results
         return {'frq_r_trn':res_trn['frq_r'], 'frq_s_trn':res_trn['frq_s'],
                 'frq_r_tst':res_tst['frq_r'], 'frq_s_tst':res_tst['frq_s'],
-                'header':obj_d_r_trn['header']}
+                'header':obj_d_r_trn['header'],
+                'analysis':'feature_frequency'}
 
     def feature_effect(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, header, 
                        outcome, missing_value, scaled=False):
@@ -597,17 +601,16 @@ class Realism(Validator):
                 'effect_s_trn':res_trn['effect_s'],
                 'effect_r_tst':res_tst['effect_r'],
                 'effect_s_tst':res_tst['effect_s'],
-                'header':res_trn['header']}
+                'header':res_trn['header'],
+                'analysis':'feature_effect'}
 
-    def plot(self, res, analysis, file_pdf=None, n_decimal=2, fontsize=14,
+    def plot(self, res, file_pdf=None, n_decimal=2, fontsize=14,
              labels_on=False):
         """Plot the results of a realism validation analysis.
 
         Parameters
         ----------
         res : TYPE
-            DESCRIPTION.
-        analysis : TYPE
             DESCRIPTION.
         file_pdf : TYPE, optional
             If specified, plot is saved to a PDF file at the given path; 
@@ -629,7 +632,7 @@ class Realism(Validator):
 
         fig = plt.figure()
 
-        if analysis == 'feature_frequency':
+        if res['analysis'] == 'feature_frequency':
 
             plt.plot([0,1],[0,1], color="gray", linestyle='--')
             plt.scatter(res['frq_r_trn'], res['frq_s_trn'], label='Train')
@@ -646,7 +649,7 @@ class Realism(Validator):
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.legend(fontsize=fontsize)
 
-        elif analysis == 'feature_effect':
+        elif res['analysis'] == 'feature_effect':
 
             lb = np.min((res['effect_r_trn'], 
                          res['effect_s_trn'], 
@@ -672,7 +675,7 @@ class Realism(Validator):
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.legend(fontsize=fontsize)
 
-        elif analysis == 'gan_train_test':
+        elif res['analysis'] == 'gan_train_test':
 
             plt.plot(res['gan_real']['roc'][0], res['gan_real']['roc'][1], 
                      label = 'Real (AUC = ' + str(np.round(res['gan_real']['auc'], n_decimal)) + ')')
@@ -694,14 +697,12 @@ class Realism(Validator):
             
         return True
 
-    def summarize(self, res, analysis, n_decimal=2):
+    def summarize(self, res, n_decimal=2):
         """Create a summary of a realism validation analysis.
 
         Parameters
         ----------
         res : TYPE
-            DESCRIPTION.
-        analysis : TYPE
             DESCRIPTION.
         n_decimal : TYPE, optional
             DESCRIPTION. The default is 2.
@@ -713,23 +714,23 @@ class Realism(Validator):
 
         """
 
-        msg = '\nSummary of '+analysis+':'
+        msg = '\nSummary of '+res['analysis']+':'
         newline = '\n  > '
 
-        if analysis == 'feature_frequency':
+        if res['analysis'] == 'feature_frequency':
             corr_trn = np.corrcoef(x=res['frq_r_trn'], y=res['frq_s_trn'])[0,1]
             msg = msg + newline + 'Frequency correlation (train): ' + str(np.round(corr_trn, n_decimal))
             corr_tst = np.corrcoef(x=res['frq_r_tst'], y=res['frq_s_tst'])[0,1]
             msg = msg + newline + 'Frequency correlation (test): ' + str(np.round(corr_tst, n_decimal))
 
-        elif analysis == 'feature_effect':
+        elif res['analysis'] == 'feature_effect':
 
             corr_trn = np.corrcoef(x=res['effect_r_trn'], y=res['effect_s_trn'])[0,1]
             msg = msg + newline + 'Importance correlation (train): ' + str(np.round(corr_trn, n_decimal))
             corr_tst = np.corrcoef(x=res['effect_r_tst'], y=res['effect_s_tst'])[0,1]
             msg = msg + newline + 'Importance correlation (test): ' + str(np.round(corr_tst, n_decimal))
 
-        elif analysis == 'gan_train_test':
+        elif res['analysis'] == 'gan_train_test':
             msg = msg + newline + 'Real AUC: ' + \
                     str(np.round(res['gan_real']['auc'], n_decimal)) + \
                     newline + 'GAN-train AUC: ' + \
@@ -737,7 +738,7 @@ class Realism(Validator):
                     newline + 'GAN-test AUC: ' + \
                     str(np.round(res['gan_test']['auc'], n_decimal))
         else:
-            msg = 'Warning: summary message for analysis \'' + analysis + \
+            msg = 'Warning: summary message for analysis \'' + res['analysis'] + \
             '\' not currently implemented in realism::summarize().'
 
         return msg
