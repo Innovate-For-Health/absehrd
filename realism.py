@@ -68,6 +68,17 @@ class Realism(Validator):
 
     def __init__(self):
         self.delim = '__'
+        
+    def which(self, arr, item):
+        
+        idx = None
+        
+        if isinstance(arr, list):
+            idx = np.where(np.array(arr) == item)[0]
+        elif isinstance(arr, np.ndarray):
+            idx = np.where(arr == item)[0]
+            
+        return idx
 
     def validate_univariate(self, arr_r, arr_s, header):
         """Calculate feature frequencies of each matrix
@@ -97,9 +108,9 @@ class Realism(Validator):
             frq_s[j] = np.mean(arr_s[:,j])
 
         return {'frq_r':frq_r, 'frq_s':frq_s,
-                'header_r':header, 'header_s':header}
+                'header':header}
 
-    def validate_effect(self, arr_r, arr_s, header, outcome):
+    def validate_effect(self, arr_r, arr_s, header, outcome, scaled=False):
         """Calculate effect sizes of logistic regression model.
 
         Parameters
@@ -128,9 +139,9 @@ class Realism(Validator):
         x_r = arr_r
         x_s = arr_s
 
-        idx_outcome = np.where(header == outcome)
+        idx_outcome = self.which(header, outcome)
         if len(idx_outcome) == 0:
-            idx_outcome = np.where(header == outcome+self.delim+outcome)
+            idx_outcome = self.which(header, outcome+self.delim+outcome)
         y_r = np.reshape(np.round(np.reshape(x_r[:,idx_outcome],
                     newshape=(len(x_r),1))).astype(int), len(x_r))
         y_s = np.reshape(np.round(np.reshape(x_s[:,idx_outcome],
@@ -138,17 +149,21 @@ class Realism(Validator):
 
         x_r = np.delete(x_r, idx_outcome, axis=1)
         x_s = np.delete(x_s, idx_outcome, axis=1)
+        header_mod = np.delete(header,idx_outcome)
 
         reg_r = LogisticRegression(max_iter=max_iter, solver=solver,
                 penalty=penalty, l1_ratio=l1_ratio).fit(X=x_r, y=y_r)
         reg_s = LogisticRegression(max_iter=max_iter, solver=solver,
                 penalty=penalty, l1_ratio=l1_ratio).fit(X=x_s, y=y_s)
 
-        effect_r = self.scale(reg_r.coef_)
-        effect_s = self.scale(reg_s.coef_)
+        effect_r = np.reshape(reg_r.coef_, newshape=x_r.shape[1])
+        effect_s = np.reshape(reg_s.coef_, newshape=x_s.shape[1])
+        if scaled:
+            effect_r = self.scale(effect_r)
+            effect_s = self.scale(effect_s)
 
         return {'effect_r':effect_r, 'effect_s':effect_s,
-                'header_r':header, 'header_s':header}
+                'header':header_mod}
 
     def validate_prediction(self, x_synth, y_synth, x_real, y_real,
                             do_gan_train, n_epoch=5, model_type='mlp', debug=False):
@@ -316,8 +331,8 @@ class Realism(Validator):
                                    do_gan_train=False, n_epoch=n_epoch,
                                    model_type=model_type, debug=debug)
 
-    def gan_train_test(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, header, outcome, n_epoch=5,
-                 model_type='lr'):
+    def gan_train_test(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, header, outcome, 
+                       missing_value, n_epoch=5, model_type='lr'):
         """Conduct GAN-train and GAN-test validation framework.
 
         Parameters
@@ -331,6 +346,8 @@ class Realism(Validator):
         col_names : TYPE
             DESCRIPTION.
         outcome : TYPE
+            DESCRIPTION.
+        missing_value : TYPE
             DESCRIPTION.
         n_epoch : TYPE, optional
             DESCRIPTION. The default is 5.
@@ -346,19 +363,16 @@ class Realism(Validator):
         
         # preprocess
         pre = Preprocessor(missing_value)
-        met_f_r = pre.get_metadata(x = mat_f_r_trn, header=header)
+        met_f_r = pre.get_metadata(arr = mat_f_r_trn, header=header)
         obj_d_r_trn = pre.get_discretized_matrix(arr=mat_f_r_trn,
                                                  meta=met_f_r,
-                                                 header=header,
-                                                 debug=False)
+                                                 header=header)
         obj_d_r_tst = pre.get_discretized_matrix(arr=mat_f_r_tst,
                                                  meta=met_f_r,
-                                                 header=header,
-                                                 debug=False)
+                                                 header=header)
         obj_d_s = pre.get_discretized_matrix(arr=mat_f_s,
                                                  meta=met_f_r,
-                                                 header=header,
-                                                 debug=False)
+                                                 header=header)
         
         # extract
         r_trn = obj_d_r_trn['x']
@@ -374,7 +388,9 @@ class Realism(Validator):
         s_tst = s_all[idx_tst,:]
 
         # extract outcome for prediction tests
-        idx_outcome = np.where(col_names == outcome)
+        idx_outcome = self.which(obj_d_r_trn['header'], outcome)
+        if len(idx_outcome) == 0:
+            idx_outcome = self.which(obj_d_r_trn['header'], outcome+self.delim+outcome)
         y_r_trn = np.reshape(np.round(np.reshape(r_trn[:,idx_outcome],
                             newshape=(len(r_trn),1))).astype(int), len(r_trn))
         y_r_tst = np.reshape(np.round(np.reshape(r_tst[:,idx_outcome],
@@ -515,17 +531,18 @@ class Realism(Validator):
         # compare r_trn and r_tst with s
         res_trn = self.validate_univariate(arr_r=obj_d_r_trn['x'],
                                            arr_s=obj_d_s['x'],
-                                           header=header)
+                                           header=obj_d_r_trn['header'])
         res_tst = self.validate_univariate(arr_r=obj_d_r_tst['x'],
                                            arr_s=obj_d_s['x'],
-                                           header=header)
+                                           header=obj_d_r_trn['header'])
 
         # combine results
         return {'frq_r_trn':res_trn['frq_r'], 'frq_s_trn':res_trn['frq_s'],
                 'frq_r_tst':res_tst['frq_r'], 'frq_s_tst':res_tst['frq_s'],
                 'header':obj_d_r_trn['header']}
 
-    def feature_effect(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, header, outcome, missing_value):
+    def feature_effect(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, header, 
+                       outcome, missing_value, scaled=False):
         """Effect size of all features in real and synthetic data matrices.
 
         Parameters
@@ -566,20 +583,24 @@ class Realism(Validator):
         # compare r_trn and r_tst with s
         res_trn = self.validate_effect(arr_r=obj_d_r_trn['x'],
                                            arr_s=obj_d_s['x'],
-                                           header=header,
-                                           outcome=outcome)
+                                           header=obj_d_r_trn['header'],
+                                           outcome=outcome,
+                                           scaled=scaled)
         res_tst = self.validate_effect(arr_r=obj_d_r_tst['x'],
                                            arr_s=obj_d_s['x'],
-                                           header=header,
-                                           outcome=outcome)
+                                           header=obj_d_r_trn['header'],
+                                           outcome=outcome,
+                                           scaled=scaled)
 
         # combine results
         return {'effect_r_trn':res_trn['effect_r'],
                 'effect_s_trn':res_trn['effect_s'],
                 'effect_r_tst':res_tst['effect_r'],
-                'effect_s_tst':res_tst['effect_s']}
+                'effect_s_tst':res_tst['effect_s'],
+                'header':res_trn['header']}
 
-    def plot(self, res, analysis, file_pdf):
+    def plot(self, res, analysis, file_pdf=None, n_decimal=2, fontsize=14,
+             labels_on=False):
         """Plot the results of a realism validation analysis.
 
         Parameters
@@ -588,8 +609,16 @@ class Realism(Validator):
             DESCRIPTION.
         analysis : TYPE
             DESCRIPTION.
-        file_pdf : TYPE
-            DESCRIPTION.
+        file_pdf : TYPE, optional
+            If specified, plot is saved to a PDF file at the given path; 
+            otherwise, plotted to standard out.
+        n_decimal: int
+            Number of decimal places to print for numeric text.
+        fontsize: int
+            Size of text for plot title, axis labels, and legends.
+        labels_on : bool
+            If True, print text labels for points on plots; otherwise do not
+            print point labels. 
 
         Returns
         -------
@@ -598,8 +627,6 @@ class Realism(Validator):
 
         """
 
-        fontsize = 6
-
         fig = plt.figure()
 
         if analysis == 'feature_frequency':
@@ -607,42 +634,64 @@ class Realism(Validator):
             plt.plot([0,1],[0,1], color="gray", linestyle='--')
             plt.scatter(res['frq_r_trn'], res['frq_s_trn'], label='Train')
             plt.scatter(res['frq_r_tst'], res['frq_s_tst'], label='Test')
-            for i in range(len(res['header'])):
-                plt.text(x=res['frq_r_trn'][i], y=res['frq_s_trn'][i],
-                         s=res['header'][i])
+            
+            if labels_on:
+                for i in range(len(res['header'])):
+                    plt.text(x=res['frq_r_trn'][i], y=res['frq_s_trn'][i],
+                             s=res['header'][i])
+                    
             plt.xlabel('Real feature frequency', fontsize=fontsize)
             plt.ylabel('Synthetic feature frequency', fontsize=fontsize)
-            plt.xlim([0, 1])
-            plt.ylim([0, 1])
             plt.tick_params(axis='x', labelsize=fontsize)
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.legend(fontsize=fontsize)
 
         elif analysis == 'feature_effect':
 
-            plt.plot([0,1],[0,1], color="gray", linestyle='--')
-            plt.scatter(res['frq_r'], res['frq_s'], label='Importance')
-            plt.xlabel('Real', fontsize=fontsize)
-            plt.ylabel('Synthetic', fontsize=fontsize)
-            plt.xlim([0, 1])
-            plt.ylim([0, 1])
+            lb = np.min((res['effect_r_trn'], 
+                         res['effect_s_trn'], 
+                         res['effect_r_tst'], 
+                         res['effect_s_tst']))
+            ub = np.max((res['effect_r_trn'], 
+                         res['effect_s_trn'], 
+                         res['effect_r_tst'], 
+                         res['effect_s_tst']))
+            
+            plt.plot([lb,ub],[lb,ub], color="gray", linestyle='--')
+            plt.scatter(res['effect_r_trn'], res['effect_s_trn'], label='Train')
+            plt.scatter(res['effect_r_tst'], res['effect_s_tst'], label='Test')
+            
+            if labels_on:
+                for i in range(len(res['header'])):
+                    plt.text(x=res['effect_r_trn'][i], y=res['effect_s_trn'][i],
+                             s=res['header'][i])
+                
+            plt.xlabel('Real feature importance', fontsize=fontsize)
+            plt.ylabel('Synthetic feature importance', fontsize=fontsize)
             plt.tick_params(axis='x', labelsize=fontsize)
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.legend(fontsize=fontsize)
 
         elif analysis == 'gan_train_test':
 
-            plt.plot(res['roc'][0], res['roc'][1], label="Real")
-            plt.plot(res['roc'][0], res['roc'][1], label="GAN-train")
-            plt.plot(res['roc'][0], res['roc'][1], label="GAN-test")
+            plt.plot(res['gan_real']['roc'][0], res['gan_real']['roc'][1], 
+                     label = 'Real (AUC = ' + str(np.round(res['gan_real']['auc'], n_decimal)) + ')')
+            plt.plot(res['gan_train']['roc'][0], res['gan_train']['roc'][1], 
+                     label = 'GAN-train (AUC = ' + str(np.round(res['gan_train']['auc'], n_decimal)) + ')')
+            plt.plot(res['gan_test']['roc'][0], res['gan_test']['roc'][1], 
+                     label = 'GAN-test (AUC = ' + str(np.round(res['gan_test']['auc'], n_decimal)) + ')')
             plt.plot([0,1],[0,1], color="gray", linestyle='--')
             plt.tick_params(axis='x', labelsize=fontsize)
             plt.tick_params(axis='y', labelsize=fontsize)
-            plt.legend(fontsize=fontsize)
+            plt.legend(fontsize=np.max((1,fontsize-2)))
             plt.xlabel('False positive rate', fontsize=fontsize)
             plt.ylabel('True positive rate', fontsize=fontsize)
 
-        fig.savefig(file_pdf, bbox_inches='tight')
+        if file_pdf is None:
+            plt.show()
+        else:
+            fig.savefig(file_pdf, bbox_inches='tight')
+            
         return True
 
     def summarize(self, res, analysis, n_decimal=2):
@@ -664,28 +713,28 @@ class Realism(Validator):
 
         """
 
-        msg = '\nSummary:'
+        msg = '\nSummary of '+analysis+':'
+        newline = '\n  > '
 
         if analysis == 'feature_frequency':
             corr_trn = np.corrcoef(x=res['frq_r_trn'], y=res['frq_s_trn'])[0,1]
-            msg = msg + '\nFrequency correlation (train): ' + str(np.round(corr_trn, n_decimal))
+            msg = msg + newline + 'Frequency correlation (train): ' + str(np.round(corr_trn, n_decimal))
             corr_tst = np.corrcoef(x=res['frq_r_tst'], y=res['frq_s_tst'])[0,1]
-            msg = msg + '\nFrequency correlation (test): ' + str(np.round(corr_tst, n_decimal))
+            msg = msg + newline + 'Frequency correlation (test): ' + str(np.round(corr_tst, n_decimal))
 
         elif analysis == 'feature_effect':
 
             corr_trn = np.corrcoef(x=res['effect_r_trn'], y=res['effect_s_trn'])[0,1]
-            msg = msg + '\nImportance correlation: ' + str(np.round(corr_trn, n_decimal))
+            msg = msg + newline + 'Importance correlation (train): ' + str(np.round(corr_trn, n_decimal))
             corr_tst = np.corrcoef(x=res['effect_r_tst'], y=res['effect_s_tst'])[0,1]
-            msg = msg + '\nImportance correlation: ' + str(np.round(corr_tst, n_decimal))
+            msg = msg + newline + 'Importance correlation (test): ' + str(np.round(corr_tst, n_decimal))
 
         elif analysis == 'gan_train_test':
-            msg = msg + '\nRealism assessment: ' + \
-                    '\n  > Real AUC: ' + \
+            msg = msg + newline + 'Real AUC: ' + \
                     str(np.round(res['gan_real']['auc'], n_decimal)) + \
-                    '\n  > GAN-train AUC: ' + \
+                    newline + 'GAN-train AUC: ' + \
                     str(np.round(res['gan_train']['auc'], n_decimal)) + \
-                    '\n  > GAN-test AUC: ' + \
+                    newline + 'GAN-test AUC: ' + \
                     str(np.round(res['gan_test']['auc'], n_decimal))
         else:
             msg = 'Warning: summary message for analysis \'' + analysis + \
