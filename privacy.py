@@ -42,7 +42,7 @@ class Privacy(Validator):
 
         return dist.pairwise(X=arr1, Y=arr2)
 
-    def nearest_neighbors(self, arr1, arr2=None, metric='euclidean',debug=False):
+    def nearest_neighbors(self, arr1, arr2=None, metric='euclidean'):
         """Calculate a nearest neighbor distance.
 
         Parameters
@@ -94,8 +94,7 @@ class Privacy(Validator):
         """
         
         if debug:
-            newline = '\n\n'
-            print(flush=True)
+            newline = '\n'
         
         # preprocess
         pre = Preprocessor(missing_value)
@@ -113,12 +112,12 @@ class Privacy(Validator):
         # real train to real train
         if debug:
             print(newline+'Real - real:', flush=True)
-        nn_real = self.nearest_neighbors(arr1=x_real, metric=metric, debug=debug)
+        nn_real = self.nearest_neighbors(arr1=x_real, metric=metric)
 
         # real to synth
         if debug:
             print(newline+'Real - synthetic:', flush=True)
-        nn_synth = self.nearest_neighbors(arr1=x_real, arr2=x_synth, metric=metric, debug=debug)
+        nn_synth = self.nearest_neighbors(arr1=x_real, arr2=x_synth, metric=metric)
 
         # real to probabilistically sampled
         if debug:
@@ -126,13 +125,13 @@ class Privacy(Validator):
         x_prob = np.full(shape=x_real.shape, fill_value=0)
         for j in range(x_real.shape[1]):
             x_prob[:,j] = np.random.binomial(n=1, p=np.mean(x_real[:,j]), size=x_real.shape[0])
-        nn_prob = self.nearest_neighbors(arr1=x_real, arr2=x_prob, metric=metric, debug=debug)
+        nn_prob = self.nearest_neighbors(arr1=x_real, arr2=x_prob, metric=metric)
 
         # real to noise
         if debug:
             print(newline+'Real - noise:', flush=True)        
         x_rand = np.random.randint(low=0, high=2, size=x_real.shape)
-        nn_rand = self.nearest_neighbors(arr1=x_real, arr2=x_rand, metric=metric, debug=debug)
+        nn_rand = self.nearest_neighbors(arr1=x_real, arr2=x_rand, metric=metric)
 
         return {'real':nn_real, 'synth':nn_synth, 'prob':nn_prob, 'rand':nn_rand, 'metric':metric}
 
