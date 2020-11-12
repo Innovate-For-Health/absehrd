@@ -133,7 +133,12 @@ class Privacy(Validator):
         x_rand = np.random.randint(low=0, high=2, size=x_real.shape)
         nn_rand = self.nearest_neighbors(arr1=x_real, arr2=x_rand, metric=metric)
 
-        return {'real':nn_real, 'synth':nn_synth, 'prob':nn_prob, 'rand':nn_rand, 'metric':metric}
+        return {'real':nn_real, 
+                'synth':nn_synth, 
+                'prob':nn_prob, 
+                'rand':nn_rand, 
+                'metric':metric,
+                'analysis':'nearest_neighbors'}
 
     def membership_inference_hayes(self, r_trn, r_tst, s_all, n_cpu):
         """Membership inference scenario as in Hayes et al. 2018.
@@ -179,7 +184,11 @@ class Privacy(Validator):
         roc = metrics.roc_curve(y_true=y_all, y_score=p_all)
         auc = metrics.roc_auc_score(y_true=y_all, y_score=p_all)
 
-        return {'prob': p_all, 'label':y_all, 'roc':roc, 'auc':auc}
+        return {'prob': p_all, 
+                'label':y_all, 
+                'roc':roc, 
+                'auc':auc,
+                'analysis':'membership_inference'}
 
     def membership_inference_torfi(self, r_trn, r_tst, s_all):
         """Membership inference scenario as in Torfi et al. 2020.
@@ -214,7 +223,11 @@ class Privacy(Validator):
         roc = metrics.roc_curve(y_true=y_all, y_score=p_all)
         auc = metrics.roc_auc_score(y_true=y_all, y_score=p_all)
 
-        return {'prob': p_all, 'label':y_all, 'roc':roc, 'auc':auc}
+        return {'prob': p_all, 
+                'label':y_all, 
+                'roc':roc, 
+                'auc':auc,
+                'analysis':'membership_inference'}
 
     def membership_inference(self, r_trn, r_tst, s_all, mi_type='hayes', n_cpu=1):
         """Membership inference wrapper function.
@@ -247,14 +260,12 @@ class Privacy(Validator):
 
         return None
 
-    def plot(self, res, analysis, file_pdf=None, n_decimal=2, fontsize=14):
+    def plot(self, res, file_pdf=None, n_decimal=2, fontsize=14):
         """Plot the results of a privacy validation analysis.
 
         Parameters
         ----------
         res : TYPE
-            DESCRIPTION.
-        analysis : TYPE
             DESCRIPTION.
         file_pdf : TYPE, optional
             If specified, plot is saved to a PDF file at the given path; 
@@ -273,7 +284,7 @@ class Privacy(Validator):
 
         fig = plt.figure()
 
-        if analysis == 'nearest_neighbors':
+        if res['analysis'] == 'nearest_neighbors':
 
             # plot distributions of distances
             plt.hist((res['real'], res['synth'],
@@ -286,7 +297,7 @@ class Privacy(Validator):
             plt.tick_params(axis='y', labelsize=fontsize)
             plt.legend(fontsize=fontsize)
 
-        elif analysis == 'membership_inference':
+        elif res['analysis'] == 'membership_inference':
 
             # plot ROC curve
             plt.plot(res['roc'][0], res['roc'][1], label="Real")
@@ -298,7 +309,7 @@ class Privacy(Validator):
             plt.title('AUC = ' + str(np.round(res['auc'], n_decimal)))
 
         else:
-            msg = 'Warning: plot for analysis \'' + analysis + \
+            msg = 'Warning: plot for analysis \'' + res['analysis'] + \
                 '\' not currently implemented in privacy::plot().'
             print(msg)
 
@@ -309,7 +320,7 @@ class Privacy(Validator):
             
         return True
 
-    def summarize(self, res, analysis, n_decimal=2):
+    def summarize(self, res, n_decimal=2):
         """Create a summary of a privacy validation analysis.
 
         Parameters
@@ -328,10 +339,10 @@ class Privacy(Validator):
 
         """
 
-        msg = '\nSummary of '+analysis+':'
+        msg = '\nSummary of '+res['analysis']+':'
         newline = '\n  > '
 
-        if analysis == 'nearest_neighbors':
+        if res['analysis'] == 'nearest_neighbors':
             msg = msg + '\n(note: average nearest neighbor distance)' + \
                     newline + 'Real-real:             ' + \
                     str(np.round(np.mean(res['real']), n_decimal)) + \
@@ -342,11 +353,11 @@ class Privacy(Validator):
                     newline + 'Real-random:           ' + \
                     str(np.round(np.mean(res['rand']), n_decimal))
 
-        elif analysis == 'membership_inference':
+        elif res['analysis'] == 'membership_inference':
             msg = msg + '\nAUC for attack: ' + \
                 str(np.round(res['auc'], n_decimal))
         else:
-            msg = 'Warning: summary message for analysis \'' + analysis + \
+            msg = 'Warning: summary message for analysis \'' + res['analysis'] + \
             '\' not currently implemented in privacy::summarize().'
 
         return msg
