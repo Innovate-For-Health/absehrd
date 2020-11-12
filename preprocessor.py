@@ -162,7 +162,14 @@ class Preprocessor:
 
         """
 
-        if self.is_iterable(arr):
+        if isinstance(arr, np.ndarray):
+            ele = arr.ravel()[0]
+            try:
+                float(ele)
+            except:
+                return False
+        
+        elif self.is_iterable(arr):
             for ele in arr:
                 try:
                     float(ele)
@@ -344,7 +351,11 @@ class Preprocessor:
             if meta[j]['type'] == 'categorical':
                 meta[j]['unique'] = ','.join(np.unique(arr[:,j]))
 
-            if len(np.where(arr[:,j] == str(self.missing_value))[0]) > 0:
+            if self.is_numeric(arr):
+                missing_value = self.missing_value
+            else:
+                missing_value = str(self.missing_value)
+            if len(np.where(arr[:,j] == missing_value)[0]) > 0:
                 meta[j]['missing'] = True
             else:
                 meta[j]['missing'] = False

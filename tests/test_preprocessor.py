@@ -195,20 +195,25 @@ class TestPreprocessor:
         pre = Preprocessor(missing_value='NULL')
         assert pre.is_iterable(np.array([1,2,3,4,5]))
 
-    def test_is_numeric_yes(self):
+    def test_is_numeric_yes1(self):
         
         pre = Preprocessor('none')
         assert pre.is_numeric([1,5,2,5,5.5,7.2])
         
-    def test_is_numeric_no1(self):
-        
-        pre = Preprocessor('none')
-        assert not pre.is_numeric(['A','B','5','10.2']) 
-        
-    def test_is_numeric_no2(self):
+    def test_is_numeric_yes2(self):
         
         pre = Preprocessor('none')
         assert pre.is_numeric(['1.2', '3.3', '5.0'])
+
+    def test_is_numeric_yes3(self):
+
+        pre = Preprocessor('none')
+        assert pre.is_numeric(np.random.random(size=(10,7)))
+        
+    def test_is_numeric_no1(self):
+        
+        pre = Preprocessor('none')
+        assert not pre.is_numeric(['A','B','5','10.2'])
         
     def test_remove_na_1(self):
         
