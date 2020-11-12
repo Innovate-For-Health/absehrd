@@ -214,12 +214,10 @@ class Privacy(Validator):
         d_tst = dist.cdist(r_tst, s_all, metric='cosine').min(axis=1)
 
         # scale distances to get 'probabilities'
-        p_trn = self.scale(d_trn, invert=True)
-        p_tst = self.scale(d_tst, invert=True)
+        p_all = self.scale(np.append(d_trn, d_tst), invert=True)
 
         # calculate performance metrics
-        p_all = np.append(p_trn, p_tst)
-        y_all = np.append(np.ones(len(p_trn)), np.zeros(len(p_tst)))
+        y_all = np.append(np.ones(len(r_trn)), np.zeros(len(r_tst)))
         roc = metrics.roc_curve(y_true=y_all, y_score=p_all)
         auc = metrics.roc_auc_score(y_true=y_all, y_score=p_all)
 
@@ -229,19 +227,26 @@ class Privacy(Validator):
                 'auc':auc,
                 'analysis':'membership_inference'}
 
-    def membership_inference(self, r_trn, r_tst, s_all, mi_type='hayes', n_cpu=1):
+    def membership_inference(self, mat_f_r_trn, mat_f_r_tst, mat_f_s, header, 
+                       missing_value, mi_type='torfi', n_cpu=1):
         """Membership inference wrapper function.
 
         Parameters
         ----------
-        r_trn : TYPE
+        mat_f_r_trn : TYPE
             DESCRIPTION.
-        r_tst : TYPE
+        mat_f_r_tst : TYPE
             DESCRIPTION.
-        s_all : TYPE
+        mat_f_s : TYPE
+            DESCRIPTION.
+        header : TYPE
+            DESCRIPTION.
+        outcome : TYPE
+            DESCRIPTION.
+        missing_value : TYPE
             DESCRIPTION.
         mi_type : TYPE, optional
-            DESCRIPTION. The default is 'hayes'.
+            DESCRIPTION. The default is 'torfi'.
         n_cpu : TYPE, optional
             DESCRIPTION. The default is 1.
 
@@ -251,6 +256,27 @@ class Privacy(Validator):
             DESCRIPTION.
 
         """
+        
+        # preprocess
+        pre = Preprocessor(missing_value)
+        met_f_r = pre.get_metadata(arr = mat_f_r_trn, header=header)
+        obj_d_r_trn = pre.get_discretized_matrix(arr=mat_f_r_trn,
+                                                 meta=met_f_r,
+                                                 header=header, 
+                                                 require_missing=False)
+        obj_d_r_tst = pre.get_discretized_matrix(arr=mat_f_r_tst,
+                                                 meta=met_f_r,
+                                                 header=header, 
+                                                 require_missing=False)
+        obj_d_s = pre.get_discretized_matrix(arr=mat_f_s,
+                                                 meta=met_f_r,
+                                                 header=header, 
+                                                 require_missing=False)
+        
+        r_trn = obj_d_r_trn['x']
+        r_tst = obj_d_r_tst['x']
+        s_all = obj_d_s['x']
+
 
         if mi_type == 'hayes':
             return self.membership_inference_hayes(r_trn, r_tst, s_all, n_cpu=n_cpu)
@@ -354,7 +380,7 @@ class Privacy(Validator):
                     str(np.round(np.mean(res['rand']), n_decimal))
 
         elif res['analysis'] == 'membership_inference':
-            msg = msg + '\nAUC for attack: ' + \
+            msg = msg + newline + 'Attack AUC: ' + \
                 str(np.round(res['auc'], n_decimal))
         else:
             msg = 'Warning: summary message for analysis \'' + res['analysis'] + \
