@@ -2,12 +2,14 @@ import numpy as np
 from sklearn import metrics
 from sklearn.neighbors import DistanceMetric
 import matplotlib.pyplot as plt
-from scipy.spatial.distance import cdist
+from scipy.spatial import distance as dist
+from tqdm import tqdm
 
 # sehrd modules
 from validator import Validator
 from corgan import Corgan
 from corgan import Discriminator
+from preprocessor import Preprocessor
 
 class Privacy(Validator):
     """Validates the privacy preserving properties of the synthetic data.
@@ -40,7 +42,7 @@ class Privacy(Validator):
 
         return dist.pairwise(X=arr1, Y=arr2)
 
-    def nearest_neighbors(self, arr1, arr2=None, metric='euclidean'):
+    def nearest_neighbors(self, arr1, arr2=None, metric='euclidean',debug=False):
         """Calculate a nearest neighbor distance.
 
         Parameters
@@ -60,41 +62,29 @@ class Privacy(Validator):
         """
 
         d_min = np.full(shape=len(arr1), fill_value=float('inf'))
-
+        
+        
         if arr2 is None:
-
-            for i in range(len(arr1)):
-                d_i = np.full(shape=len(arr1), fill_value=float('inf'))
-
-                for j in range(len(arr1)):
-                    if i != j:
-                        d_i[j] = self.distance(arr1[i,:], arr1[j,:], metric)
-
-                d_min[i] = np.min(d_i)
-
+            d_all = dist.squareform(dist.pdist(arr1, metric=metric))
+            np.fill_diagonal(d_all, np.inf)
+            d_min = d_all.min(axis=1)
         else:
-
-            for i in range(len(arr1)):
-                d_i = np.full(shape=len(arr2), fill_value=float('inf'))
-
-                for j in range(len(arr2)):
-                    d_i[j] = self.distance(arr1[i,:], arr2[j,:], metric)
-
-                d_min[i] = np.min(d_i)
+            d_min = dist.cdist(arr1, arr2, metric=metric).min(axis=1)
 
         return d_min
 
-    def assess_memorization(self, x_real, x_synth, metric='euclidean'):
+    def assess_memorization(self, mat_f_r, mat_f_s, missing_value, header,
+                            metric='euclidean', debug=False):
         """Calculate the distribution of nearest neighbors.
 
         Parameters
         ----------
-        x_real : array_like
-            Array of real .
+        mat_f_r : array_like
+            Realistically formatted matrix of real data.
         x_synth : array_like
-            DESCRIPTION.
+            Realistically formatted matrix of synthetic data.
         metric : str, optional
-            DESCRIPTION. The default is 'euclidean'.
+            Distance metric label. The default is 'euclidean'.
 
         Returns
         -------
@@ -102,22 +92,47 @@ class Privacy(Validator):
             DESCRIPTION.
 
         """
+        
+        if debug:
+            newline = '\n\n'
+            print(flush=True)
+        
+        # preprocess
+        pre = Preprocessor(missing_value)
+        met_f_r = pre.get_metadata(arr = mat_f_r, header=header)
+        obj_d_r = pre.get_discretized_matrix(arr=mat_f_r,
+                                                 meta=met_f_r,
+                                                 header=header)
+        obj_d_s = pre.get_discretized_matrix(arr=mat_f_s,
+                                                 meta=met_f_r,
+                                                 header=header)
+        x_real = obj_d_r['x']
+        x_synth = obj_d_s['x']
 
-        # real to real
-        nn_real = self.nearest_neighbors(arr1=x_real, metric=metric)
+
+        # real train to real train
+        if debug:
+            print(newline+'Real - real:', flush=True)
+        nn_real = self.nearest_neighbors(arr1=x_real, metric=metric, debug=debug)
 
         # real to synth
-        nn_synth = self.nearest_neighbors(arr1=x_real, arr2=x_synth, metric=metric)
+        if debug:
+            print(newline+'Real - synthetic:', flush=True)
+        nn_synth = self.nearest_neighbors(arr1=x_real, arr2=x_synth, metric=metric, debug=debug)
 
         # real to probabilistically sampled
+        if debug:
+            print(newline+'Real - probabilistic:', flush=True)
         x_prob = np.full(shape=x_real.shape, fill_value=0)
         for j in range(x_real.shape[1]):
             x_prob[:,j] = np.random.binomial(n=1, p=np.mean(x_real[:,j]), size=x_real.shape[0])
-        nn_prob = self.nearest_neighbors(arr1=x_real, arr2=x_prob, metric=metric)
+        nn_prob = self.nearest_neighbors(arr1=x_real, arr2=x_prob, metric=metric, debug=debug)
 
         # real to noise
+        if debug:
+            print(newline+'Real - noise:', flush=True)        
         x_rand = np.random.randint(low=0, high=2, size=x_real.shape)
-        nn_rand = self.nearest_neighbors(arr1=x_real, arr2=x_rand, metric=metric)
+        nn_rand = self.nearest_neighbors(arr1=x_real, arr2=x_rand, metric=metric, debug=debug)
 
         return {'real':nn_real, 'synth':nn_synth, 'prob':nn_prob, 'rand':nn_rand, 'metric':metric}
 
@@ -187,8 +202,8 @@ class Privacy(Validator):
         """
 
         # store all pairwise distances
-        d_trn = cdist(r_trn, s_all, metric='cosine').min(axis=1)
-        d_tst = cdist(r_tst, s_all, metric='cosine').min(axis=1)
+        d_trn = dist.cdist(r_trn, s_all, metric='cosine').min(axis=1)
+        d_tst = dist.cdist(r_tst, s_all, metric='cosine').min(axis=1)
 
         # scale distances to get 'probabilities'
         p_trn = self.scale(d_trn, invert=True)
@@ -242,8 +257,9 @@ class Privacy(Validator):
             DESCRIPTION.
         analysis : TYPE
             DESCRIPTION.
-        file_pdf : TYPE
-            DESCRIPTION.
+        file_pdf : TYPE, optional
+            If specified, plot is saved to a PDF file at the given path; 
+            otherwise, plotted to standard out.
         n_decimal: int
             Number of decimal places to print for numeric text.
         fontsize: int
@@ -313,22 +329,22 @@ class Privacy(Validator):
 
         """
 
-        msg = ''
-        n_decimal = 2
+        msg = '\nSummary of '+analysis+':'
+        newline = '\n  > '
 
         if analysis == 'nearest_neighbors':
-            msg = 'Mean nearest neighbor distance: ' + \
-                    '\n  > Real-real: ' + \
+            msg = msg + '\n(note: average nearest neighbor distance)' + \
+                    newline + 'Real-real:             ' + \
                     str(np.round(np.mean(res['real']), n_decimal)) + \
-                    '\n  > Real-synthetic: ' + \
+                    newline + 'Real-synthetic:        ' + \
                     str(np.round(np.mean(res['synth']), n_decimal)) + \
-                    '\n  > Real-probabilistic: ' + \
+                    newline + 'Real-probabilistic:    ' + \
                     str(np.round(np.mean(res['prob']), n_decimal)) + \
-                    '\n  > Real-random: ' + \
+                    newline + 'Real-random:           ' + \
                     str(np.round(np.mean(res['rand']), n_decimal))
 
         elif analysis == 'membership_inference':
-            msg = 'AUC for membership inference attack: ' + \
+            msg = msg + '\nAUC for attack: ' + \
                 str(np.round(res['auc'], n_decimal))
         else:
             msg = 'Warning: summary message for analysis \'' + analysis + \
