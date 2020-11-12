@@ -168,7 +168,7 @@ class Privacy(Validator):
         y_all = np.append(np.zeros(len(r_tst)), np.ones(len(r_trn)))
 
         # train shadow GAN
-        gan_shadow = cor.train(x=s_all, n_cpu=n_cpu)
+        gan_shadow = cor.train(x=s_all, n_cpu=n_cpu, debug=True)
 
         # load shadow discriminator
         minibatch_averaging = gan_shadow['parameter_dict']['minibatch_averaging']
@@ -278,8 +278,10 @@ class Privacy(Validator):
         s_all = obj_d_s['x']
 
 
+        """
         if mi_type == 'hayes':
             return self.membership_inference_hayes(r_trn, r_tst, s_all, n_cpu=n_cpu)
+        """
 
         if mi_type == 'torfi':
             return self.membership_inference_torfi(r_trn, r_tst, s_all)
