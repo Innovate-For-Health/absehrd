@@ -39,7 +39,7 @@ class Synthesizer:
         with open(file_name, 'rb') as file_obj:
             return pickle.load(file_obj)
 
-    def train(self):
+    def train(self, x, n_epochs, n_cpu, **kwargs):
         """Train a generator model.
         
         Returns
@@ -49,7 +49,7 @@ class Synthesizer:
 
         return None
 
-    def generate(self):
+    def generate(self, model, n_gen):
         """Generate synthetic samples from the trained model.
         
         Returns
