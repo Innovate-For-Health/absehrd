@@ -1,6 +1,11 @@
-""" COR-GAN for synthetic electronic health record data generation.
+""" Adaptation of CorGAN: Correlation-Capturing Convolutional Generative 
+Adversarial Networks for Generating Synthetic Healthcare Records.
+
 Torfi, A., & Fox, E. A. (2020). COR-GAN: Correlation-Capturing
 Convolutional Neural Networks for Generating Synthetic Healthcare Records.
+https://arxiv.org/abs/2001.09346
+
+https://github.com/astorfi/cor-gan
 """
 
 import os
