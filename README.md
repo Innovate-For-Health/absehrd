@@ -6,3 +6,5 @@ for Generating Synthetic Healthcare Records).
 
 See absehrd.ipynb for example usage and additional documentation.
 Run 'python absehrd.py' to see command line interface usage.  
+
+Thanks to Akshat Gokhale (ajgokhale) and Cynthia Wu (cynthiakwu) for contributions to this project. 
