@@ -590,14 +590,13 @@ class Corgan(Synthesizer):
                     'optimizer_A_state_dict': optimizer_a.state_dict(),
                     'parameter_dict':parameter_dict}
 
-    # model may be a file name to the checkpoint or a model dictionary object
     def generate(self, model, n_gen):
         """Generate samples for the Cor-GAN generator.
 
         Parameters
         ----------
-        model : dict
-            Dictionary representing trained GAN model.
+        model : dict or str
+            Dictionary representing trained GAN model or a file name.
         n_gen : int
             Number of samples to generate.
 
