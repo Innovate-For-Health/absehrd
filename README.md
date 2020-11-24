@@ -26,7 +26,7 @@ conda activate absehrd
 ### Command line interface
 To see an overview of the command line interface (CLI) usage, run
 ```
-python absehrd.py
+python absehrd.py -h
 ```
 
 The CLI has four main executable tasks labeled 'train', 'generate', 'realism', and 'privacy'.
@@ -50,7 +50,7 @@ python absehrd.py train --file_data examples/example_train.csv \
 
 Generate synthetic samples from the trained generator:
 ```
-python absehrd.py generate --file_model examples/example.pkl \
+python absehrd.py generate --file_model examples/example_model.pkl \
                            --outprefix_generate examples/example_synthetic \
                            --generate_size 5000
 ```
