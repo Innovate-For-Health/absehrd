@@ -1,6 +1,6 @@
 from os.path import isfile
 import numpy as np
-import feather
+from pyarrow import feather
 
 class Preprocessor:
     """Preprocessing functions for transforming and restoring data matrices.

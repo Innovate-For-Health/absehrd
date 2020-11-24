@@ -247,9 +247,6 @@ if args.task == 'generate':
 
 # initial message -----------------
 
-# TODO: porint initial message to user
-#   - start time
-#   - command
 tic = dt.datetime.now()
 print('\n------------------------------')
 print('\nStarted: ' + str(tic.replace(microsecond=0)))

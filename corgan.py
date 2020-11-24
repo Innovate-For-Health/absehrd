@@ -9,7 +9,6 @@ https://github.com/astorfi/cor-gan
 """
 
 import os
-import time
 import multiprocessing
 import numpy as np
 import torch
