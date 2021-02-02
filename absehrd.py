@@ -8,13 +8,14 @@ import datetime as dt
 # sehrd packages
 from preprocessor import Preprocessor
 from corgan import Corgan
+from ppgan import Ppgan
 from realism import Realism
 from privacy import Privacy
 
 # cli ------------------------
 
 # valid values (default is always first)
-choices_train_type = ['corgan']
+choices_train_type = ['corgan', 'ppgan']
 choices_analysis_realism = ['feature_frequency',
                     'feature_effect',
                     'gan_train_test']
@@ -49,11 +50,6 @@ parser_t.add_argument('--train_type',
                     help='type of generative model to train',
                     choices=choices_train_type,
                     default=choices_train_type[0],
-                    required=False)
-parser_t.add_argument('--n_epoch_pre',
-                    help='number of pre-training epochs (>0)',
-                    type=int,
-                    default=100,
                     required=False)
 parser_t.add_argument('--n_epoch',
                     help='number of training epochs (>0)',
@@ -176,6 +172,12 @@ parser_p.add_argument('--output_privacy',
                     choices=choices_output,
                     default=choices_output[0],
                     required=False)
+parser_p.add_argument('--sample_privacy',
+                    help='number of samples on which to conduct privacy analysis',
+                    type=int,
+                    default=10000,
+                    required=False)
+
 
 # check user input -------------
 
@@ -189,12 +191,6 @@ args = parser.parse_args()
 
 # check arguments for 'train' task
 if args.task == 'train':
-
-    if args.n_epoch_pre <= 0:
-        parser.print_usage()
-        print('sehrd.py: error: argument --n_epoch_pre: invalid choice: \'' +
-              str(args.n_epoch_pre) + '\' (choose integer greater than 0)')
-        sys.exit(0)
 
     if args.n_epoch <= 0:
         parser.print_usage()
@@ -262,9 +258,8 @@ if args.task == 'train':
 
     # instantiate
     pre = Preprocessor(missing_value=args.missing_value)
-    cor = Corgan()
     outfile = args.outprefix_train + '.pkl'
-
+    
     if args.verbose:
         debug = True
     else:
@@ -288,21 +283,28 @@ if args.task == 'train':
     r_tst = r_all[idx_tst,:]
 
     # train and save model
-    model = cor.train(x=r_trn, n_cpu=args.n_cpu_train, debug=debug,
-                      n_epochs=args.n_epoch,
-                      n_epochs_pretrain=args.n_epoch_pre)
+    if args.train_type == 'corgan':
+        syn = Corgan(debug=debug, n_cpu=args.n_cpu_train)
+    elif args.train_type == 'ppgan':
+        syn = Ppgan(debug=debug, n_cpu=args.n_cpu_train)
+    model = syn.train(x=r_trn, n_epochs=args.n_epoch)
     model['m'] = meta
     model['header'] = obj_d['header']
-    cor.save_obj(model, outfile)
+    syn.save_obj(model, outfile)
 
 elif args.task == 'generate':
 
-    cor = Corgan()
     pre = Preprocessor(missing_value=args.missing_value_generate)
     outfile = args.outprefix_generate + '.csv'
 
-    model = cor.load_obj(args.file_model)
-    s = cor.generate(model, n_gen=args.generate_size)
+    syn = Corgan()
+    model = syn.load_obj(args.file_model)
+    if model['parameter_dict']['model'] == 'corgan':
+        syn = Corgan()
+    elif model['parameter_dict']['model'] == 'ppgan':
+        syn = Ppgan(debug=False, n_cpu=1)
+    
+    s = syn.generate(model, n_gen=args.generate_size)
 
     f = pre.restore_matrix(arr=s, meta=model['m'], header=model['header'])
     np.savetxt(fname=outfile, fmt='%s', X=f['x'], delimiter=',',
@@ -385,6 +387,17 @@ elif args.task == 'privacy':
     r_trn = pre.read_file(args.file_privacy_real_train)
     r_tst = pre.read_file(args.file_privacy_real_test)
     s = pre.read_file(args.file_privacy_synth)
+    
+    # subsample 
+    if args.sample_privacy < len(s['x']):
+        idx = np.random.choice(range(len(s['x'])), args.sample_privacy, replace=False)
+        s['x'] = s['x'][idx,:]
+    if args.sample_privacy < len(r_trn['x']):
+        idx = np.random.choice(range(len(r_trn['x'])), args.sample_privacy, replace=False)
+        r_trn['x'] = r_trn['x'][idx,:]
+    if args.sample_privacy < len(r_tst['x']):
+        idx = np.random.choice(range(len(r_tst['x'])), args.sample_privacy, replace=False)
+        r_tst['x'] = r_tst['x'][idx,:]
 
     # analysis
     if args.analysis_privacy == 'nearest_neighbors':
