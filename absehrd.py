@@ -8,7 +8,7 @@ import datetime as dt
 # sehrd packages
 from preprocessor import Preprocessor
 from corgan import Corgan
-from ppgan import Ppgan
+#from ppgan import Ppgan
 from realism import Realism
 from privacy import Privacy
 
