@@ -211,6 +211,9 @@ class Preprocessor:
 
         if len(idx) > 0:
             arr_d = np.delete(arr_d,idx)
+            
+        if x_num:
+            idx = np.append(idx, np.where(np.isnan(arr.astype(float))))
 
         return arr_d
 
