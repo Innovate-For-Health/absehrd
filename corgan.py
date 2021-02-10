@@ -209,6 +209,27 @@ class Corgan(Synthesizer):
     """ Cor-GAN: generative advesarial network plus autoencoder for
         generating synthetic binary data.
     """
+    
+    def __init__(self, debug=False, n_cpu=1):
+        """
+        Create a CorGAN structure.
+
+        Parameters
+        ----------
+        debug : bool, optional
+            If True, output debugging messages; otherwise, do not print
+            debugging messages. The default is False.
+        n_cpu : int, optional
+            Number of CPUs to use during training. The default is 1.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        self.debug=debug
+        self.n_cpu = n_cpu
 
     def autoencoder_loss(self, x_output, y_target, epsilon = 1e-12):
         """Calculate loss function for autoencoder model.
@@ -278,7 +299,6 @@ class Corgan(Synthesizer):
             m_layer.bias.data.fill_(0.01)
 
     def train(self, x,
-              n_cpu=1,
               n_epochs_pretrain=100,
               n_epochs=100,
               frac_trn=0.8,
@@ -296,16 +316,13 @@ class Corgan(Synthesizer):
               epoch_time_show=1,
               epoch_save_model_freq=100,
               path_checkpoint='corgan_ckpts',
-              prefix_checkpoint='ckpt',
-              debug=False):
+              prefix_checkpoint='ckpt'):
         """Train the Cor-GAN model.
 
         Parameters
         ----------
         x : array_like
             2D array of data to train the generator.
-        n_cpu : int
-            Number of CPUs to use for training.
         n_epochs_pretrain : int
             Number of epochs to use during training of the autoencoder.
         n_epochs : int
@@ -343,8 +360,7 @@ class Corgan(Synthesizer):
             DESCRIPTION.
         prefix_checkpoint : TYPE
             DESCRIPTION.
-        debug : TYPE
-            DESCRIPTION.
+        
 
         Returns
         -------
@@ -363,7 +379,7 @@ class Corgan(Synthesizer):
 
         # adapt batch-size to small datasets
         if len(x_tst) < batch_size or len(x_trn) < batch_size:
-            if debug:
+            if self.debug:
                 print('\nWarning: decreasing batch size from',
                       batch_size, 'to', min(len(x_tst), len(x_trn)),
                       'due to small dataset.', flush=True)
@@ -398,14 +414,14 @@ class Corgan(Synthesizer):
         mone = one * -1
 
         max_cpu = multiprocessing.cpu_count()
-        if max_cpu > 1 and n_cpu > 1:
-            n_cpu = min(max_cpu, n_cpu)
-            if debug:
-                print('Using', n_cpu, 'of', max_cpu, 'CPUs', flush=True)
-            generator_model = nn.DataParallel(generator_model, list(range(n_cpu)))
-            discriminator_model = nn.DataParallel(discriminator_model, list(range(n_cpu)))
-            autoencoder_model = nn.DataParallel(autoencoder_model, list(range(n_cpu)))
-            autoencoder_decoder = nn.DataParallel(autoencoder_decoder, list(range(n_cpu)))
+        if max_cpu > 1 and self.n_cpu > 1:
+            self.n_cpu = min(max_cpu, self.n_cpu)
+            if self.debug:
+                print('Using', self.n_cpu, 'of', max_cpu, 'CPUs', flush=True)
+            generator_model = nn.DataParallel(generator_model, list(range(self.n_cpu)))
+            discriminator_model = nn.DataParallel(discriminator_model, list(range(self.n_cpu)))
+            autoencoder_model = nn.DataParallel(autoencoder_model, list(range(self.n_cpu)))
+            autoencoder_decoder = nn.DataParallel(autoencoder_decoder, list(range(self.n_cpu)))
 
         # Weight initialization
         generator_model.apply(self.weights_init)
@@ -422,7 +438,7 @@ class Corgan(Synthesizer):
                                        weight_decay=weight_decay)
 
         timer_pre = tqdm(range(n_epochs_pretrain), desc='Pre-training', 
-                         unit=' epochs', disable=(not debug))
+                         unit=' epochs', disable=(not self.debug))
         for epoch_pre in timer_pre:
             for i, samples in enumerate(d_trn):
 
@@ -441,14 +457,14 @@ class Corgan(Synthesizer):
                 a_loss.backward()
                 optimizer_a.step()
 
-                if debug:
+                if self.debug:
                     batches_done = epoch_pre * len(x_trn) + i
                     if batches_done % sample_interval == 0:
                         msg = '[A loss: %.3f]' % (a_loss.item())
                         timer_pre.set_postfix_str(s=msg, refresh=False)
 
         gen_iterations = 0
-        timer = tqdm(range(n_epochs), desc='Training', unit=' epochs', disable=(not debug))
+        timer = tqdm(range(n_epochs), desc='Training', unit=' epochs', disable=(not self.debug))
         for epoch in timer:
             for i, samples in enumerate(d_trn):
 
@@ -545,7 +561,7 @@ class Corgan(Synthesizer):
                 reconst_samples_test = autoencoder_model(real_samples_test)
                 a_loss_test = self.autoencoder_loss(reconst_samples_test, real_samples_test)
 
-            if debug:
+            if self.debug:
                 msg = 'TRAIN: [Loss_D: %.3f] [Loss_G: %.3f] [Loss_D_real: %.3f] [Loss_D_fake %.3f]' \
                       % (err_d.item(), err_g.item(), err_d_real.item(),err_d_fake.item())
                 msg = msg+' | TEST: [A loss: %.2f] [real accuracy: %.2f] [fake accuracy: %.2f]' \
@@ -555,10 +571,11 @@ class Corgan(Synthesizer):
             # End of epoch
             #epoch_end = time.time()
 
-            parameter_dict = {'latent_dim':latent_dim,
+            parameter_dict = {'model':'corgan',
+                                  'latent_dim':latent_dim,
                                   'feature_size':x.shape[1],
                                   'batch_size':batch_size,
-                                  'n_cpu':n_cpu,
+                                  'n_cpu':self.n_cpu,
                                   'minibatch_averaging':minibatch_averaging}
 
             if (epoch + 1) % epoch_save_model_freq == 0 or (epoch + 1) == n_epochs:
