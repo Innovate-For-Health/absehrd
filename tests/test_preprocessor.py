@@ -5,8 +5,9 @@
 
 import numpy as np
 import os
-import feather
 import pandas as pd
+import pickle
+from pyarrow import feather
 
 # sehrd modules
 from preprocessor import Preprocessor
@@ -49,6 +50,11 @@ class TestPreprocessor:
         pre = Preprocessor('null')
         file_name = 'file.npy'
         assert pre.get_file_type(file_name=file_name) == 'npy'
+        
+    def test_get_file_type_pkl(self):
+        pre = Preprocessor('null')
+        file_name = 'file.pkl'
+        assert pre.get_file_type(file_name=file_name) == 'pkl'
         
     def test_get_file_type_tsv(self):
         pre = Preprocessor('null')
@@ -121,6 +127,25 @@ class TestPreprocessor:
         
         assert res is not None and len(res['header']) == m and len(res['x']) == n
         
+    def test_read_file_pkl(self):
+        
+        n = 10
+        m = 2
+        pre = Preprocessor('none')
+        file_name = 'test.pkl'
+        
+        header = self.create_header(m)
+        arr = self.create_binary_matrix(n,m)
+        data_obj = pd.DataFrame(data=arr, columns=header)
+        
+        with open(file_name, 'wb') as file_obj:
+            pickle.dump(data_obj, file_obj, pickle.HIGHEST_PROTOCOL)
+        
+        res = pre.read_file(file_name, has_header=True)
+        os.remove(file_name)
+        
+        assert res is not None and len(res['header']) == m and len(res['x']) == n
+        
     def test_read_file_feather(self):
         
         n = 10
@@ -131,7 +156,7 @@ class TestPreprocessor:
         header = self.create_header(m)
         arr = self.create_binary_matrix(n,m)
 
-        feather.write_dataframe(pd.DataFrame(arr, columns=header), file_name)
+        feather.write_feather(pd.DataFrame(arr, columns=header), file_name)
         res = pre.read_file(file_name, has_header=True)
         os.remove(file_name)
         
@@ -280,6 +305,38 @@ class TestPreprocessor:
         g = np.array([3,2,5,5,2,1], dtype=str)
         
         assert (g==d).all()
+        
+    def test_remove_na_7(self):
+       
+        missing_value = 'nan'
+        pre = Preprocessor(missing_value=missing_value)
+        
+        v = np.array([3,2,5,missing_value,5,2,1])
+        d = pre.remove_na(v)
+        g = np.array([3,2,5,5,2,1], dtype=str)
+        
+        assert (g==d).all()
+        
+    def test_remove_na_8(self):
+       
+        missing_value = np.nan
+        pre = Preprocessor(missing_value=missing_value)
+        
+        v = np.array([3,2,5,missing_value,5,2,1])
+        d = pre.remove_na(v)
+        g = np.array([3,2,5,5,2,1])
+        
+        assert (g==d).all()
+    
+    def test_remove_na_9(self):
+       
+        missing_value = 'nan'
+        pre = Preprocessor(missing_value=missing_value)
+        
+        v = np.full(6,'nan')
+        d = pre.remove_na(v)
+        
+        assert len(d) == 0
 
     def test_get_variable_type_count(self):
         

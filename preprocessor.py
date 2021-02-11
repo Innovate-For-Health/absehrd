@@ -1,6 +1,7 @@
 from os.path import isfile
 import numpy as np
 from pyarrow import feather
+import pandas as pd
 
 class Preprocessor:
     """Preprocessing functions for transforming and restoring data matrices.
@@ -35,6 +36,8 @@ class Preprocessor:
             file_type = 'csv'
         elif file_name.endswith('.tsv'):
             file_type = 'tsv'
+        elif file_name.endswith('.pkl'):
+            file_type = 'pkl'
         else:
             file_type = None
 
@@ -92,9 +95,15 @@ class Preprocessor:
             if has_header:
                 header = arr[0,:]
                 arr = arr[1:len(arr),:]
+        
+        elif self.get_file_type(file_name) == 'pkl':
+            pd_df = pd.read_pickle(file_name)
+            arr = pd_df.to_numpy()
+            if has_header:
+                header = pd_df.columns
 
         elif self.get_file_type(file_name) == 'feather':
-            pd_df = feather.read_dataframe(file_name)
+            pd_df = feather.read_feather(file_name)
             arr = pd_df.to_numpy()
             if has_header:
                 header = pd_df.columns
@@ -161,6 +170,9 @@ class Preprocessor:
             True if the array contains numbers; False otherwise.
 
         """
+        
+        if isinstance(arr, np.ndarray) and len(arr) == 0:
+            return True
 
         if isinstance(arr, np.ndarray):
             ele = arr.ravel()[0]
@@ -203,7 +215,10 @@ class Preprocessor:
         x_num = self.is_numeric(arr)
         m_num = self.is_numeric(self.missing_value)
 
-        if x_num and m_num:
+        if m_num and np.isnan(self.missing_value):
+            idx = np.where(np.isnan(arr))
+            
+        elif x_num and m_num:
             idx = np.where(arr.astype(float) == float(self.missing_value))
 
         else:
@@ -211,9 +226,6 @@ class Preprocessor:
 
         if len(idx) > 0:
             arr_d = np.delete(arr_d,idx)
-            
-        if x_num:
-            idx = np.append(idx, np.where(np.isnan(arr.astype(float))))
 
         return arr_d
 
