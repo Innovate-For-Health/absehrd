@@ -263,15 +263,15 @@ class Privacy(Validator):
         obj_d_r_trn = pre.get_discretized_matrix(arr=mat_f_r_trn,
                                                  meta=met_f_r,
                                                  header=header, 
-                                                 require_missing=False)
+                                                 require_missing=True)
         obj_d_r_tst = pre.get_discretized_matrix(arr=mat_f_r_tst,
                                                  meta=met_f_r,
                                                  header=header, 
-                                                 require_missing=False)
+                                                 require_missing=True)
         obj_d_s = pre.get_discretized_matrix(arr=mat_f_s,
                                                  meta=met_f_r,
                                                  header=header, 
-                                                 require_missing=False)
+                                                 require_missing=True)
         
         r_trn = obj_d_r_trn['x']
         r_tst = obj_d_r_tst['x']
