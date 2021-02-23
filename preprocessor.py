@@ -226,6 +226,7 @@ class Preprocessor:
 
         if len(idx) > 0:
             arr_d = np.delete(arr_d,idx)
+        arr_d = np.delete(arr_d, np.where(arr_d.astype(str) == ''))
 
         return arr_d
 
@@ -528,6 +529,9 @@ class Preprocessor:
             else:
                 if str(ele) == str(self.missing_value):
                     idx = np.append(idx, i)
+
+        # added
+        idx = np.unique(np.append(idx, np.where(arr == '')))
 
         return idx
 
