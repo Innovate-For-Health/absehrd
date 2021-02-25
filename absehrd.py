@@ -308,7 +308,7 @@ elif args.task == 'generate':
 
     f = pre.restore_matrix(arr=s, meta=model['m'], header=model['header'])
     np.savetxt(fname=outfile, fmt='%s', X=f['x'], delimiter=',',
-               header=','.join(f['header']))
+               header=','.join(f['header']), comments = '')
 
 elif args.task == 'realism':
 
