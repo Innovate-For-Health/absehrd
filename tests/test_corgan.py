@@ -26,11 +26,9 @@ class TestCorgan:
         model = cor.train(x=x, 
                              n_epochs_pretrain=10,
                              n_epochs=10,
-                             n_cpu=1, 
                              batch_size=512,
                              path_checkpoint=path_checkpoint, 
-                             prefix_checkpoint=prefix_checkpoint,
-                             debug=False)
+                             prefix_checkpoint=prefix_checkpoint)
         
         file_ckpt=os.path.join(path_checkpoint, prefix_checkpoint + ".model_epoch_%d.pth" % n_epochs)
         res = os.path.isfile(file_ckpt)
@@ -56,10 +54,8 @@ class TestCorgan:
         model = cor.train(x=x, 
                              n_epochs_pretrain=10,
                              n_epochs=10,
-                             n_cpu=1,
                              path_checkpoint=path_checkpoint, 
-                             prefix_checkpoint=prefix_checkpoint,
-                             debug=False)
+                             prefix_checkpoint=prefix_checkpoint)
         
         x_synth = cor.generate(model = model, n_gen=n_gen)
         
@@ -85,10 +81,8 @@ class TestCorgan:
         model_saved = cor.train(x=x, 
                              n_epochs_pretrain=10,
                              n_epochs=10,
-                             n_cpu=1,
                              path_checkpoint=path_checkpoint, 
-                             prefix_checkpoint=prefix_checkpoint,
-                             debug=False)
+                             prefix_checkpoint=prefix_checkpoint)
         
         file = 'test.pkl'
         cor.save_obj(obj=model_saved, file_name=file)
