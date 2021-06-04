@@ -11,7 +11,7 @@ for Generating Synthetic Healthcare Records).
 Download the zip file from GitHub or clone the repository locally:
 
 ```
-git clone https://github.com/Innovate-For-Health/absehrd
+git clone https://github.com/hhunterzinck/absehrd
 ```
 
 Navigate to the directory and create a conda environment:

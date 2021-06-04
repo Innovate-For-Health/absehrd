@@ -15,7 +15,8 @@ from privacy import Privacy
 # cli ------------------------
 
 # valid values (default is always first)
-choices_train_type = ['corgan', 'ppgan']
+#choices_train_type = ['corgan', 'ppgan']
+choices_train_type = ['corgan']
 choices_analysis_realism = ['feature_frequency',
                     'feature_effect',
                     'gan_train_test']
