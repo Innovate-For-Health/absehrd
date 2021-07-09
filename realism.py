@@ -110,6 +110,32 @@ class Realism(Validator):
         return {'frq_r':frq_r, 'frq_s':frq_s,
                 'header':header}
 
+    def get_column_index(self, col_names, col_name):
+
+        idx_col = self.which(col_names, col_name)
+
+        if len(idx_col) == 0:
+            idx_col = self.which(col_names, col_name + self.delim + col_name)
+
+        if len(idx_col) == 0:
+            idx_col = self.which(col_names, '\"'+col_name+'\"')
+
+        if len(idx_col) == 0:
+            idx_col = self.which(col_names, '\''+col_name+'\'')
+
+        if len(idx_col) == 0:
+            idx_col = self.which(col_names, '\"' + col_name + '\"' +
+                                        self.delim + 
+                                        '\"' + col_name + '\"')
+
+        if len(idx_col) == 0:
+            idx_col = self.which(col_names, '\'' + col_name + '\'' +
+                                        self.delim + 
+                                        '\'' + col_name + '\'')
+
+        return idx_col
+
+
     def validate_effect(self, arr_r, arr_s, header, outcome, scaled=False):
         """Calculate effect sizes of logistic regression model.
 
@@ -139,9 +165,7 @@ class Realism(Validator):
         x_r = arr_r
         x_s = arr_s
 
-        idx_outcome = self.which(header, outcome)
-        if len(idx_outcome) == 0:
-            idx_outcome = self.which(header, outcome+self.delim+outcome)
+        idx_outcome = self.get_column_index(header, outcome)
         y_r = np.reshape(np.round(np.reshape(x_r[:,idx_outcome],
                     newshape=(len(x_r),1))).astype(int), len(x_r))
         y_s = np.reshape(np.round(np.reshape(x_s[:,idx_outcome],
@@ -388,9 +412,7 @@ class Realism(Validator):
         s_tst = s_all[idx_tst,:]
 
         # extract outcome for prediction tests
-        idx_outcome = self.which(obj_d_r_trn['header'], outcome)
-        if len(idx_outcome) == 0:
-            idx_outcome = self.which(obj_d_r_trn['header'], outcome+self.delim+outcome)
+        idx_outcome = self.get_column_index(header, outcome)
         y_r_trn = np.reshape(np.round(np.reshape(r_trn[:,idx_outcome],
                             newshape=(len(r_trn),1))).astype(int), len(r_trn))
         y_r_tst = np.reshape(np.round(np.reshape(r_tst[:,idx_outcome],

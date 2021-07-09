@@ -174,3 +174,10 @@ class TestRealism:
     
     def test_validate_feature(self):
         assert True
+
+    def test_get_column_index(self):
+
+        rea = Realism()
+        arr = np.array(['A', 'B', 'C'])
+
+        assert rea.get_column_index(arr, 'B') == 1
