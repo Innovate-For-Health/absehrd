@@ -5,11 +5,10 @@ import matplotlib.pyplot as plt
 from scipy.spatial import distance as dist
 from tqdm import tqdm
 
-# sehrd modules
-from validator import Validator
-from corgan import Corgan
-from corgan import Discriminator
-from preprocessor import Preprocessor
+# absehrd modules
+from .corgan import Corgan
+from .preprocessor import Preprocessor
+from .validator import Validator
 
 class Privacy(Validator):
     """Validates the privacy preserving properties of the synthetic data.

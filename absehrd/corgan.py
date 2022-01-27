@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 # absehrd modules
-from synthesizer import Synthesizer
+from .synthesizer import Synthesizer
 
 class Dataset:
     """Data representation for COR-GAN.

@@ -5,9 +5,9 @@ from sklearn.linear_model import LogisticRegression
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 
-# sehrd
-from preprocessor import Preprocessor
-from validator import Validator
+# absehrd
+from .preprocessor import Preprocessor
+from .validator import Validator
 
 class MLP(torch.nn.Module):
     """Multilayer perceptron model.

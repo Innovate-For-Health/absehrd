@@ -14,50 +14,62 @@ Download the zip file from GitHub or clone the repository locally:
 git clone https://github.com/hhunterzinck/absehrd
 ```
 
-Navigate to the directory and create a conda environment:
+(optional but recommended) Create a conda environment:
 
 ```
-conda env create -f absehrd.yml
+conda create --name absehrd python=3.8
 conda activate absehrd
 ```
+
+Install the package with pip:
+```
+cd absehrd
+pip install .
+```
+
+To test successful installation:
+```
+which absehrd
+```
+which should output the path to the executable.
 
 ## Usage
 
 ### Command line interface
 To see an overview of the command line interface (CLI) usage, run
 ```
-python absehrd.py -h
+absehrd -h
 ```
 
 The CLI has four main executable tasks labeled 'train', 'generate', 'realism', and 'privacy'.
 You can view all arguments for each action, by specifying the task name and the
 help flag as for the 'train' task below:
 ```
-python absehrd.py train -h
+absehrd train -h
 ```
 
 To test out the package, create a sample dataset:
 ```
-python example_dataset.py
+python examples/example_dataset.py
 ```
 
 Train a synthetic data generator on the example dataset:
 ```
-python absehrd.py train --file_data examples/example_train.csv \
+absehrd train --file_data examples/example_train.csv \
                         --outprefix_train examples/example_model \
                         --verbose
 ```
 
 Generate synthetic samples from the trained generator:
 ```
-python absehrd.py generate --file_model examples/example_model.pkl \
+absehrd generate --file_model examples/example_model.pkl \
                            --outprefix_generate examples/example_synthetic \
                            --generate_size 5000
 ```
 
 Validate the realism of the synthetic dataset:
 ```
-python absehrd.py realism --outprefix_realism examples/example_realism \
+absehrd realism --outprefix_realism examples/example_realism \
                           --file_realism_real_train examples/example_train.csv \
                           --file_realism_real_test examples/example_test.csv \
                           --file_realism_synth examples/example_synthetic.csv \
@@ -68,7 +80,7 @@ python absehrd.py realism --outprefix_realism examples/example_realism \
 
 Validate the privacy-preserving properties of the synthetic dataset:
 ```
-python absehrd.py privacy --outprefix_privacy examples/example_realism \
+absehrd privacy --outprefix_privacy examples/example_realism \
                           --file_privacy_real_train examples/example_train.csv \
                           --file_privacy_real_test examples/example_test.csv \
                           --file_privacy_synth examples/example_synthetic.csv \
